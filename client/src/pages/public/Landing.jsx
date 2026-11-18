@@ -47,6 +47,12 @@ export default function Landing() {
           </div>
           <Link className="pub-second" to="/practice">{h.cta_secondary} <IconArrow width={16} height={16} /></Link>
           <small className="pub-note">{h.cta_note}</small>
+          {/* phones: the floating doodles are hidden, so the key numbers sit here instead */}
+          <div className="pub-hero-stats">
+            <span><b>{h.stats?.[0]?.value || '+120'}</b><small>{h.stats?.[0]?.label || 'average score lift'}</small></span>
+            <span><b>{c.questions}+</b><small>practice questions</small></span>
+            <span><b>{h.stats?.[2]?.value || '32 min'}</b><small>{h.stats?.[2]?.label || 'like the real module'}</small></span>
+          </div>
           <div className="pub-proof">
             <div className="faces" aria-hidden="true">{['M', 'J', 'S', 'D', 'A', 'N'].map((x, i) => <span key={x} style={{ '--i': i }}>{x}</span>)}</div>
             <span>{c.students >= 30 ? <>Loved by <b>{c.students.toLocaleString('en-US')}+</b> students</> : <>Built for students from <b>Uzbekistan</b></>}{c.tests >= 50 ? <> · <b>{c.tests.toLocaleString('en-US')}</b> practice tests taken</> : <> · <b>{c.questions}</b> original questions</>}</span>
@@ -117,7 +123,8 @@ function Pricing({ cfg, trial }) {
   const count = (cfg?.tiers?.length || 0) + 1;
   // auto-play: one card every 3.5 s, back to the start at the end; pauses while the visitor hovers or touches
   useEffect(() => {
-    if (!cfg?.tiers || hold || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+    // phones: no auto-play (it moves the cards under the visitor's thumb)
+    if (!cfg?.tiers || hold || window.matchMedia('(prefers-reduced-motion: reduce), (max-width: 760px)').matches) return undefined;
     const t = setInterval(() => {
       const el = rail.current; if (!el) return;
       const end = el.scrollLeft + el.clientWidth >= el.scrollWidth - 8;
@@ -158,7 +165,7 @@ function Pricing({ cfg, trial }) {
       <button className="pp-arrow r" aria-label="Next plan" onClick={() => go(Math.min(count - 1, at + 1))}>›</button>
       </div>
       <div className="pp-dots" aria-hidden="true">{cards.map((c, i) => <button key={c.id} className={at === i ? 'on' : ''} onClick={() => go(i)} tabIndex={-1} />)}</div>
-      <p className="muted center pp-note">Swipe or wait — the plans move by themselves · extra full mock {money(cfg.fm_extra_price)} {cur} from your wallet</p>
+      <p className="muted center pp-note">Swipe to see every plan · extra full mock {money(cfg.fm_extra_price)} {cur} from your wallet</p>
     </section>
   );
 }
