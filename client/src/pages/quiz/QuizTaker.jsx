@@ -190,7 +190,7 @@ function ExamTaker({ initial }) {
           </BBFooter>
         )}>
         {view === 'question' ? (
-          <BBSplit
+          <BBSplit id={q.id}
             left={q.passage ? <Highlightable key={q.id} on={hl}><Passage text={q.passage} /></Highlightable> : null}
             right={(
               <div key={q.id}>

@@ -30,7 +30,8 @@ import { migrateVisits, registerVisits } from './visits.js';
 import { migrateAdmins, registerAdmins, adminGuard } from './admins.js';
 import { migrateCalib } from './calibrate.js';
 import { registerQuality } from './quality.js';
-import { migrateAssignments, registerAssignments, assignedQuizOpen } from './assignments.js';
+import { migrateAssignments, registerAssignments, assignedQuizOpen, assignmentBlock } from './assignments.js';
+import { migrateMath, syncMath, registerMath } from './math.js';
 import { migrateReserved, registerReserved, scanReserved, scanSoon } from './reserved.js';
 import { registerProgress } from './progress.js';
 import { migrateMistakes, registerMistakes } from './mistakes.js';
@@ -100,6 +101,7 @@ const schemaDone = await db.one("SELECT value FROM settings WHERE key = '_schema
 // a database moved or restored from a copy may say "migrated" but miss newer tables or columns: check a few, else migrate
 const schemaOk = schemaDone?.value === schema && await db.one(`SELECT (to_regclass('public.site_visits') IS NOT NULL AND to_regclass('public.question_approvals') IS NOT NULL
     AND to_regclass('public.live_bookings') IS NOT NULL AND to_regclass('public.tg_logins') IS NOT NULL
+    AND to_regclass('public.math_questions') IS NOT NULL AND to_regclass('public.assignment_grants') IS NOT NULL
     AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'admin_perms')) AS ok`).then((r) => !!r?.ok).catch(() => false);
 if (!schemaOk) {
   await migrate();
@@ -140,6 +142,7 @@ if (!schemaOk) {
   ALTER TABLE user_activity ENABLE ROW LEVEL SECURITY;
   `);
   await migrateGame();
+  await migrateMath();
   // after a database is copied, the id counters can stay behind the rows (new inserts then fail with "duplicate key"):
   // move every id counter past the highest id in its table
   try {
@@ -152,6 +155,7 @@ if (!schemaOk) {
   } catch (e) { console.error('[seq]', e.message); }
   await db.run("INSERT INTO settings (key, value) VALUES ('_schema_hash', ?) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", [schema]);
 }
+await syncMath().catch((e) => console.error('[math]', e.message));
 await initSecret();
 await seedSite();
 const seeded = await seed();
@@ -383,6 +387,7 @@ registerVocab(app, { h, bad, requireMaster, requireStudent, accessFor: (u) => ac
 
 registerPlacement(app, { h, bad, requireStudent, requireMaster });
 registerLessons(app, { h, bad, requireStudent, requireMaster, roadmapFor: (u) => roadmapFor(u), accessFor: (u) => accessFor(u) });
+registerMath(app, { h, bad, requireStudent, requireMaster });
 registerQbank(app, { h, bad, requireStudent, requireMaster, accessFor: (u) => accessFor(u), upload, usedToday,
   itemOpen: async (user, itemId) => (await roadmapFor(user)).steps.some((st) => st.status !== 'locked' && st.items.some((i) => i.id === Number(itemId))) });
 registerFullMocks(app, { h, bad, requireStudent, requireMaster, upload });
@@ -544,7 +549,7 @@ app.get('/api/health', requireMaster, h(async (req, res) => {
   const add = (name, ok, detail, fix) => checks.push({ name, ok, detail, fix: fix || null });
   const t = Date.now(); await db.one('SELECT 1 AS x'); const ping = Date.now() - t;
   add('Database', true, `Connected (${DB_KIND === 'postgres' ? dbHost.split('.').slice(1, 3).join('.') || 'postgres' : 'local'}), ${ping} ms`);
-  const need = ['users', 'settings', 'qbank_questions', 'qbank_answers', 'roadmap_items', 'balance_ledger', 'tg_requests', 'full_mock_attempts', 'live_bookings', 'site_visits', 'question_approvals', 'tg_logins', 'check_edits', 'usage_answers'];
+  const need = ['users', 'settings', 'qbank_questions', 'qbank_answers', 'roadmap_items', 'balance_ledger', 'tg_requests', 'full_mock_attempts', 'live_bookings', 'site_visits', 'question_approvals', 'tg_logins', 'check_edits', 'usage_answers', 'math_questions', 'assignment_grants'];
   const have = new Set((await db.all("SELECT table_name AS t FROM information_schema.tables WHERE table_schema = 'public'")).map((r) => r.t));
   const missing = need.filter((x) => !have.has(x));
   add('Tables', !missing.length, missing.length ? `Missing: ${missing.join(', ')}` : `${have.size} tables, all present`, missing.length ? 'migrate' : null);
@@ -989,13 +994,19 @@ async function attemptPayload(attempt, quiz) {
 }
 app.post('/api/quizzes/:id/start', requireStudent, h(async (req, res) => {
   const quiz = await db.one('SELECT * FROM quizzes WHERE id = ?', [req.params.id]);
-  if (!quiz || !(await canAccess(req.user, quiz.id))) return bad(res, 'This quiz is not available to you', 403);
+  if (!quiz) return bad(res, 'This quiz is not available to you', 403);
+  if (!(await canAccess(req.user, quiz.id))) {
+    const why = await assignmentBlock(req.user, quiz.id, roadmapFor);
+    return bad(res, why || 'This quiz is not available to you', 403, why ? { code: 'assignment_closed' } : {});
+  }
   if (quiz.kind !== 'diagnostic') {
     const acc = await accessFor(req.user);
     if (!acc.can_practice) return bad(res, 'An active subscription is required to practice', 402, { code: 'subscription_required' });
   }
   let attempt = await db.one('SELECT * FROM attempts WHERE user_id = ? AND quiz_id = ? AND finished_at IS NULL', [req.user.id, quiz.id]);
   if (!attempt) {
+    const blocked = await assignmentBlock(req.user, quiz.id, roadmapFor);
+    if (blocked) return bad(res, blocked, 403, { code: 'assignment_closed' });
     const { c: total } = await db.one('SELECT COUNT(*) AS c FROM questions WHERE quiz_id = ?', [quiz.id]);
     if (!total) return bad(res, 'This quiz has no questions yet');
     attempt = await db.one('INSERT INTO attempts (user_id, quiz_id, started_at, total) VALUES (?,?,now(),?) RETURNING *', [req.user.id, quiz.id, total]);

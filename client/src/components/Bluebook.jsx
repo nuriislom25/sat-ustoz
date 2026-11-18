@@ -76,8 +76,59 @@ export function BBShell({ title, directions, seconds, countdown = true, tools, o
 const IconClockIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-label="Time hidden"><circle cx="12" cy="13" r="8" /><path d="M12 9v4l2 2M9 2h6" strokeLinecap="round" /></svg>;
 const HighlighterIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true"><path d="m14 4 6 6-8.5 8.5H6v-5.5z" /><path d="M4 21h8" strokeLinecap="round" /></svg>;
 
+const NARROW = '(max-width: 860px)';
+function useNarrow() {
+  const [n, setN] = useState(() => typeof window !== 'undefined' && window.matchMedia(NARROW).matches);
+  useEffect(() => {
+    const m = window.matchMedia(NARROW); const f = () => setN(m.matches);
+    m.addEventListener('change', f); return () => m.removeEventListener('change', f);
+  }, []);
+  return n;
+}
+
+/**
+ * Phones: no tiny half-screen boxes. A short passage sits above the question in one scroll;
+ * a long one gets its own full-screen tab ("Passage" | "Question"), and each tab keeps its scroll place.
+ * Every new question opens on the passage (or on the question when the passage is short).
+ */
+function BBMobile({ left, right, id, tabs }) {
+  const [tab, setTab] = useState('passage');
+  const [short, setShort] = useState(true);
+  const probe = useRef(null);
+  const pScroll = useRef(null); const qScroll = useRef(null);
+  useLayoutEffect(() => {
+    const len = (probe.current?.textContent || '').trim().length;
+    const isShort = !tabs && len < 480;
+    setShort(isShort);
+    setTab('passage');
+    [pScroll, qScroll].forEach((r) => { if (r.current) r.current.scrollTop = 0; });
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (short) {
+    return (
+      <div className="bb-mob stack-mode" ref={qScroll}>
+        <section className="bb-mob-passage" aria-label="Passage" ref={probe}>{left}</section>
+        <section className="bb-mob-q" aria-label="Question">{right}</section>
+      </div>
+    );
+  }
+  return (
+    <div className="bb-mob tab-mode">
+      <div className="bb-mob-tabs" role="tablist">
+        <button role="tab" aria-selected={tab === 'passage'} className={tab === 'passage' ? 'on' : ''} onClick={() => setTab('passage')}>Passage</button>
+        <button role="tab" aria-selected={tab === 'question'} className={tab === 'question' ? 'on' : ''} onClick={() => setTab('question')}>Question</button>
+      </div>
+      <section className="bb-mob-pane" hidden={tab !== 'passage'} aria-label="Passage" ref={pScroll}>
+        <div ref={probe}>{left}</div>
+        <button type="button" className="bb-mob-go" onClick={() => { setTab('question'); }}>Go to the question <IconChevron width={16} height={16} /></button>
+      </section>
+      <section className="bb-mob-pane" hidden={tab !== 'question'} aria-label="Question" ref={qScroll}>{right}</section>
+    </div>
+  );
+}
+
 /** Passage | question with a draggable divider. With no passage the question sits in the centre. */
-export function BBSplit({ left, right }) {
+export function BBSplit({ left, right, id, tabs }) {
+  const narrow = useNarrow();
   const read = (k, d) => { try { return Number(localStorage.getItem(k)) || d; } catch { return d; } };
   const [w, setW] = useState(() => read('bb-split', 50)); // desktop: passage width %
   const [h, setH] = useState(() => read('bb-split-top', 45)); // phone: passage height %
@@ -99,6 +150,7 @@ export function BBSplit({ left, right }) {
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
   };
   if (!left) return <div className="bb-single"><div className="bb-pane bb-right">{right}</div></div>;
+  if (narrow) return <BBMobile left={left} right={right} id={id} tabs={tabs} />;
   return (
     <div className={`bb-split ${folded ? 'folded' : ''}`} ref={box} style={{ '--bb-left': `${w}%`, '--bb-top': `${h}%` }}>
       <section className="bb-pane bb-left" aria-label="Passage">
@@ -403,7 +455,7 @@ export function BBPracticeRunner({ title, directions, questions, cur, setCur, ch
           {!rv && checkedCount > 0 && last && <button className="bb-btn sun" onClick={onFinish}>{finishLabel}</button>}
         </BBFooter>
       )}>
-      <BBSplit left={q.passage ? <Highlightable key={q.id} on={hl}>{q.passage}</Highlightable> : null} right={question} />
+      <BBSplit id={q.id} left={q.passage ? <Highlightable key={q.id} on={hl}>{q.passage}</Highlightable> : null} right={question} />
       {nav && (
         <BBNavigator title={title} cur={cur} onGo={go} onClose={() => setNav(false)}
           items={questions.map((x) => { const r = reveal(x.id); return { answered: !!choice(x.id), marked: marked[x.id], state: r ? (r.ok ? 'right' : 'wrong') : '' }; })} />
@@ -432,7 +484,7 @@ export function BBExam({ title, directions, seconds, countdown = true, onExit, e
           <button className="bb-btn" onClick={onNext}>{nextLabel}</button>
         </BBFooter>
       )}>
-      <BBSplit
+      <BBSplit id={qid}
         left={passage ? <Highlightable key={qid} on={hl}>{passage}</Highlightable> : null}
         right={(
           <div key={qid}>

@@ -126,7 +126,7 @@ function Module({ a, onNext }) {
           </BBFooter>
         )}>
         {pdf ? (
-          <BBSplit
+          <BBSplit tabs
             left={<MockPdf id={a.mock.id} />}
             right={(
               <div className="fm-sheet">
@@ -140,7 +140,7 @@ function Module({ a, onNext }) {
               </div>
             )} />
         ) : view === 'q' ? (
-          <BBSplit
+          <BBSplit id={q.id}
             left={(q.passage || q.table) ? <Highlightable key={q.id} on={hl}><Passage text={q.passage} table={q.table} /></Highlightable> : null}
             right={(
               <div key={q.id}>

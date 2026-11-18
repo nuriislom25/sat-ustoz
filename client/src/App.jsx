@@ -56,6 +56,9 @@ const Lesson = page(() => import('./pages/lesson/Lesson.jsx'));
 const QuestionBank = page(() => import('./pages/qbank/QuestionBank.jsx'));
 const QbankPractice = page(() => import('./pages/qbank/QbankPractice.jsx'));
 const QbankAdmin = page(() => import('./pages/master/QbankAdmin.jsx'));
+const MathHome = page(() => import('./pages/math/MathHome.jsx'));
+const MathLesson = page(() => import('./pages/math/MathLesson.jsx'));
+const MathPractice = page(() => import('./pages/math/MathPractice.jsx'));
 const LevelCheck = page(() => import('./pages/lesson/LevelCheck.jsx'));
 const LevelCheckResult = page(() => import('./pages/lesson/LevelCheck.jsx').then((m) => ({ default: m.LevelCheckResult })));
 const Practice = page(() => import('./pages/public/Practice.jsx'));
@@ -115,6 +118,7 @@ export default function App() {
       {user.role === 'student' && <Route path="/placement/test" element={<PlacementTest />} />}
       {user.role === 'student' && <Route path="/lesson/:id/check" element={<LevelCheck />} />}
       {user.role === 'student' && <Route path="/question-bank/practice" element={<QbankPractice />} />}
+      {user.role === 'student' && <Route path="/math/practice" element={<MathPractice />} />}
       {user.role === 'student' && <Route path="/mistakes/review" element={<MistakeReview />} />}
       {user.role === 'student' && <Route path="/mock" element={<MockTaker />} />}
       {user.role === 'student' && <Route path="/exam/:itemId" element={<MockTaker />} />}
@@ -135,6 +139,8 @@ export default function App() {
         <Route path="vocab/unit/:id" element={<VocabUnit />} />
         <Route path="vocab/review" element={<VocabReview />} />
         <Route path="game" element={<GameHub />} />
+        <Route path="math" element={<MathHome />} />
+        {user.role === 'student' && <Route path="math/learn/:id" element={<MathLesson />} />}
         {user.role === 'master' ? (
           <>
             <Route index element={<Overview />} />

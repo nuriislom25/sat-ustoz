@@ -7,8 +7,19 @@ import { IconArrow, IconCheck, IconClock, IconLock, IconPlus, IconRoad, IconSear
 
 const STATUS = {
   new: ['New', 'primary'], in_progress: ['In progress', 'warn'], retake: ['Retake available', 'warn'],
-  passed: ['Passed', 'good'], failed: ['No attempts left', 'bad'], locked: ['Locked', ''], waiting: ['Retake opens soon', 'warn'],
+  passed: ['Passed', 'good'], failed: ['No tries left', 'bad'], locked: ['Locked', ''], waiting: ['Retake opens soon', 'warn'], closed: ['Deadline passed', 'bad'],
 };
+
+/** "in 2 days", "in 5 hours", "2 days ago" */
+export function dueText(d) {
+  const ms = new Date(d).getTime() - Date.now();
+  const a = Math.abs(ms); const h = Math.round(a / 36e5); const days = Math.round(a / 864e5);
+  const span = a < 36e5 ? `${Math.max(1, Math.round(a / 6e4))} min` : h < 36 ? `${h} ${h === 1 ? 'hour' : 'hours'}` : `${days} days`;
+  return ms >= 0 ? `in ${span}` : `${span} ago`;
+}
+const fmtDue = (d) => fmtDate(d, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+/** retakes ↔ attempts_allowed: 0 = unlimited, 1 = one try, 2 = one retake … */
+const retakeLabel = (allowed) => (!allowed ? 'Unlimited retakes' : allowed === 1 ? 'One try, no retakes' : `${allowed - 1} ${allowed === 2 ? 'retake' : 'retakes'}`);
 
 export default function Assignments() {
   const { user } = useAuth();
@@ -29,7 +40,7 @@ function StudentAssignments() {
 export function AssignmentList({ items, teacherView }) {
   const todo = items.filter((a) => ['new', 'in_progress', 'retake', 'waiting'].includes(a.status))
     .sort((a, b) => (a.due_at ? new Date(a.due_at) : 9e15) - (b.due_at ? new Date(b.due_at) : 9e15));
-  const done = items.filter((a) => a.status === 'passed' || a.status === 'failed');
+  const done = items.filter((a) => ['passed', 'failed', 'closed'].includes(a.status));
   const later = items.filter((a) => a.status === 'locked');
   if (!items.length) return <Card><Empty icon={<IconTask />} title="No assignments yet" text="Quizzes appear here when you reach their roadmap step, or when your teacher assigns one." /></Card>;
   return (
@@ -56,14 +67,22 @@ function AssignmentCard({ a, teacherView }) {
           {a.questions > 0 && <span>{a.questions} questions{a.minutes ? ` · ${a.minutes} min` : ''}</span>}
           <span>Pass {a.pass_pct}%</span>
           {a.best != null && <span>Best <b>{a.best}%</b>{a.tries ? ` · ${a.tries} ${a.tries === 1 ? 'try' : 'tries'}` : ''}{a.attempts_allowed ? ` of ${a.attempts_allowed}` : ''}</span>}
-          {a.due_at && <span className={a.overdue ? 'bad-text' : ''}><IconClock width={13} height={13} /> {a.overdue ? 'Overdue · ' : 'Due '}{fmtDate(a.due_at, { day: 'numeric', month: 'short' })}</span>}
+          {a.attempts_allowed > 0 && a.status !== 'passed' && a.tries_left != null && <span className={a.tries_left <= 1 ? 'warn-text' : ''}>{a.tries_left} {a.tries_left === 1 ? 'try' : 'tries'} left</span>}
         </div>
+        {a.due_at && a.status !== 'passed' && (
+          <div className={`as-due ${a.overdue ? 'over' : new Date(a.due_at) - Date.now() < 864e5 ? 'soon' : ''}`}>
+            <IconClock width={14} height={14} />
+            <span>{a.overdue ? (a.close_at_due ? 'Closed ' : 'Overdue · was due ') : 'Due '}<b>{fmtDue(a.due_at)}</b> · {dueText(a.due_at)}</span>
+          </div>
+        )}
         {a.note && <p className="muted as-note">{a.note}</p>}
         {a.locked && <p className="muted as-note">{a.lock_reason}</p>}
+        {a.status === 'closed' && !teacherView && <p className="muted as-note">The deadline has passed. Ask your teacher if you need more time.</p>}
+        {a.status === 'failed' && !teacherView && <p className="muted as-note">You used every try. Ask your teacher for one more.</p>}
         {a.status === 'waiting' && <p className="muted as-note">Not passed yet — the retake opens {fmtDate(a.retake.opens_at, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}. Review your mistakes first.</p>}
       </div>
       {teacherView && a.retake && <span className="chip">{a.retake.used ? 'Retake used' : 'No retake yet'}</span>}
-      {!teacherView && !a.locked && a.status !== 'failed' && a.status !== 'waiting' && <Link className={`btn ${a.status === 'passed' ? 'ghost' : 'primary'} sm`} to={a.type === 'exam' ? `/exam/${a.item_id}` : `/quiz/${a.quiz_id}`}>{btn} <IconArrow width={15} height={15} /></Link>}
+      {!teacherView && !a.locked && !['failed', 'waiting', 'closed'].includes(a.status) && <Link className={`btn ${a.status === 'passed' ? 'ghost' : 'primary'} sm`} to={a.type === 'exam' ? `/exam/${a.item_id}` : `/quiz/${a.quiz_id}`}>{btn} <IconArrow width={15} height={15} /></Link>}
     </article>
   );
 }
@@ -75,6 +94,8 @@ function TeacherAssignments() {
   const [assign, setAssign] = useState(false);
   const [del, setDel] = useState(null);
   const [open, setOpen] = useState(null);
+  const [edit, setEdit] = useState(null);
+  const grant = async (a, s) => { try { await api.post(`/assignments/${a.id}/grant`, { user_id: s.id, extra: 1 }); toast(`${s.name} has one more try`); st.reload(); } catch (e) { toast(e.message, 'bad'); } };
   return (
     <div className="page">
       <PageHeader title="Assignments" sub="Roadmap quizzes open for each student as they reach the step. Here you give extra quizzes to a student or a group — retakes, homework, deadlines.">
@@ -93,16 +114,28 @@ function TeacherAssignments() {
                     <div className="as-meta">
                       <span className="chip good">{a.passed} of {a.total} passed</span>
                       <span>{a.started} started</span>
-                      <span>Pass {a.pass_pct}%{a.attempts_allowed ? ` · ${a.attempts_allowed} attempts` : ''}</span>
-                      {a.due_at && <span><IconClock width={13} height={13} /> Due {fmtDate(a.due_at, { day: 'numeric', month: 'short' })}</span>}
+                      <span>Pass {a.pass_pct}%</span>
+                      <span>{retakeLabel(a.attempts_allowed)}</span>
+                    </div>
+                    <div className={`as-due ${a.due_at && new Date(a.due_at) < new Date() ? 'over' : ''}`}>
+                      <IconClock width={14} height={14} />
+                      {a.due_at ? <span>Deadline <b>{fmtDue(a.due_at)}</b> · {dueText(a.due_at)}{a.close_at_due ? ' · closes at the deadline' : ''}</span> : <span>No deadline</span>}
+                      <button className="as-link" onClick={() => setEdit(a)}>Change</button>
                     </div>
                     {open === a.id && (
                       <div className="as-people">
-                        {a.students.map((s) => <Link key={s.id} to={`/students/${s.id}`} className={`as-person ${s.status}`}><b>{s.name}</b><span>{STATUS[s.status]?.[0] || s.status}{s.best != null ? ` · ${s.best}%` : ''}</span></Link>)}
+                        {a.students.map((s) => (
+                          <div key={s.id} className={`as-person ${s.status}`}>
+                            <Link to={`/students/${s.id}`}><b>{s.name}</b></Link>
+                            <span>{STATUS[s.status]?.[0] || s.status}{s.best != null ? ` · ${s.best}%` : ''}{s.allowed ? ` · ${s.tries}/${s.allowed} tries` : s.tries ? ` · ${s.tries} tries` : ''}</span>
+                            {s.status === 'failed' && <button className="as-link" onClick={() => grant(a, s)}>+1 try</button>}
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
-                  <div className="row" style={{ gap: 6 }}>
+                  <div className="row as-acts" style={{ gap: 6 }}>
+                    <button className="btn ghost sm" onClick={() => setEdit(a)}>Edit</button>
                     <button className="btn ghost sm" onClick={() => setOpen(open === a.id ? null : a.id)}>{open === a.id ? 'Hide' : 'Students'}</button>
                     <button className="icon-sm danger" aria-label="Remove assignment" onClick={() => setDel(a)}><IconTrash width={15} height={15} /></button>
                   </div>
@@ -110,6 +143,7 @@ function TeacherAssignments() {
               ))}
             </div>
           )}
+          {edit && <EditAssignment a={edit} onClose={() => setEdit(null)} onDone={() => { setEdit(null); st.reload(); }} />}
           {assign && <AssignModal quizzes={quizzes} onClose={() => setAssign(false)} onDone={() => { setAssign(false); st.reload(); }} />}
           {del && <Confirm title="Remove this assignment?" text={`Students keep their results, but “${del.title}” leaves their Assignments.`} confirmLabel="Remove" onClose={() => setDel(null)}
             onConfirm={async () => { try { await api.del(`/assignments/${del.id}`); toast('Removed'); setDel(null); st.reload(); } catch (e) { toast(e.message, 'bad'); } }} />}
@@ -123,7 +157,7 @@ function TeacherAssignments() {
 export function AssignModal({ quizzes, quizId, studentId, onClose, onDone }) {
   const toast = useToast();
   const st = useAsync(() => Promise.all([api.get('/students'), api.get('/groups')]), []);
-  const [f, setF] = useState({ quiz_id: quizId || '', mode: studentId ? 'students' : 'group', group_id: '', due_at: '', attempts_allowed: '', pass_pct: 70, note: '' });
+  const [f, setF] = useState({ quiz_id: quizId || '', mode: studentId ? 'students' : 'group', group_id: '', due_at: '', due_time: '23:59', attempts_allowed: '0', close_at_due: false, pass_pct: 70, note: '' });
   const [picked, setPicked] = useState(() => new Set(studentId ? [studentId] : []));
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
@@ -132,7 +166,7 @@ export function AssignModal({ quizzes, quizId, studentId, onClose, onDone }) {
     setBusy(true);
     try {
       await api.post('/assignments', { quiz_id: f.quiz_id, group_id: f.mode === 'group' ? f.group_id : null, user_ids: f.mode === 'students' ? [...picked] : [],
-        due_at: f.due_at ? new Date(f.due_at + 'T23:59:00+05:00').toISOString() : null, attempts_allowed: f.attempts_allowed, pass_pct: f.pass_pct, note: f.note });
+        due_at: toDue(f), close_at_due: f.close_at_due, attempts_allowed: f.attempts_allowed, pass_pct: f.pass_pct, note: f.note });
       toast('Assigned'); onDone();
     } catch (e) { toast(e.message, 'bad'); } finally { setBusy(false); }
   };
@@ -184,13 +218,78 @@ function AssignForm({ f, set, setF, quizzes, students, groups, picked, setPicked
           </div>
         </div>
       )}
-      <div className="grid g3">
-        <Field label="Due date" hint="optional"><input type="date" value={f.due_at} onChange={set('due_at')} /></Field>
-        <Field label="Attempts" hint="empty = unlimited"><input type="number" min="0" max="20" value={f.attempts_allowed} onChange={set('attempts_allowed')} placeholder="∞" /></Field>
-        <Field label="Pass mark, %" hint="usually 70"><input type="number" min="10" max="100" value={f.pass_pct} onChange={set('pass_pct')} /></Field>
-      </div>
-      <Field label="Note for students" hint="optional"><input value={f.note} onChange={set('note')} maxLength={300} placeholder="Retake after our lesson on Tuesday" /></Field>
+      <RulesFields f={f} set={set} setF={setF} />
       <small className="muted">Students who linked the Telegram bot get a message.</small>
     </div>
+  );
+}
+
+/** Tashkent time (UTC+5): date + time fields → ISO, and back. */
+const toDue = (f) => (f.due_at ? new Date(`${f.due_at}T${f.due_time || '23:59'}:00+05:00`).toISOString() : null);
+const fromDue = (iso) => {
+  if (!iso) return { due_at: '', due_time: '23:59' };
+  const t = new Date(new Date(iso).getTime() + 5 * 36e5).toISOString();
+  return { due_at: t.slice(0, 10), due_time: t.slice(11, 16) };
+};
+
+/** Deadline, retakes, pass mark, note — the same fields when giving a task and when changing it. */
+function RulesFields({ f, set, setF }) {
+  const quick = (days) => { const d = new Date(Date.now() + 5 * 36e5 + days * 864e5).toISOString().slice(0, 10); setF({ ...f, due_at: d, due_time: f.due_time || '23:59' }); };
+  return (
+    <>
+      <div className="as-rules">
+        <div className="as-rule">
+          <b>Deadline</b>
+          <div className="row wrap" style={{ gap: 6 }}>
+            {[['Tomorrow', 1], ['In 3 days', 3], ['In a week', 7]].map(([l, d]) => <button type="button" key={l} className="chip chip-btn" onClick={() => quick(d)}>{l}</button>)}
+            {f.due_at && <button type="button" className="chip chip-btn" onClick={() => setF({ ...f, due_at: '', close_at_due: false })}>No deadline</button>}
+          </div>
+          <div className="grid g2" style={{ gap: 8 }}>
+            <Field label="Date"><input type="date" value={f.due_at} onChange={set('due_at')} /></Field>
+            <Field label="Time (Tashkent)"><input type="time" value={f.due_time} onChange={set('due_time')} disabled={!f.due_at} /></Field>
+          </div>
+          {f.due_at && (
+            <label className="row" style={{ gap: 8, alignItems: 'flex-start' }}>
+              <input type="checkbox" checked={!!f.close_at_due} onChange={(e) => setF({ ...f, close_at_due: e.target.checked })} />
+              <span><b>Close at the deadline</b><br /><small className="muted">After it, students can no longer start the quiz. Otherwise it stays open and shows as overdue.</small></span>
+            </label>
+          )}
+        </div>
+        <div className="as-rule">
+          <b>Retakes</b>
+          <div className="as-retakes">
+            {[['1', 'No retake', 'one try'], ['2', '1 retake', '2 tries'], ['3', '2 retakes', '3 tries'], ['4', '3 retakes', '4 tries'], ['0', 'Unlimited', 'any number']].map(([v, l, h]) => (
+              <button type="button" key={v} className={`as-retake ${String(f.attempts_allowed || '0') === v ? 'on' : ''}`} onClick={() => setF({ ...f, attempts_allowed: v })}><b>{l}</b><small>{h}</small></button>
+            ))}
+          </div>
+          <small className="muted">Tries count from the day you give the task. Passing ends it.</small>
+        </div>
+      </div>
+      <div className="grid g2">
+        <Field label="Pass mark, %" hint="usually 70"><input type="number" min="10" max="100" value={f.pass_pct} onChange={set('pass_pct')} /></Field>
+        <Field label="Note for students" hint="optional"><input value={f.note} onChange={set('note')} maxLength={300} placeholder="Retake after our lesson on Tuesday" /></Field>
+      </div>
+    </>
+  );
+}
+
+function EditAssignment({ a, onClose, onDone }) {
+  const toast = useToast();
+  const [f, setF] = useState({ ...fromDue(a.due_at), attempts_allowed: String(a.attempts_allowed || 0), close_at_due: !!a.close_at_due, pass_pct: a.pass_pct, note: a.note || '' });
+  const [busy, setBusy] = useState(false);
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const save = async () => {
+    setBusy(true);
+    try { await api.put(`/assignments/${a.id}`, { due_at: toDue(f), close_at_due: f.close_at_due, attempts_allowed: f.attempts_allowed, pass_pct: f.pass_pct, note: f.note }); toast('Saved'); onDone(); }
+    catch (e) { toast(e.message, 'bad'); } finally { setBusy(false); }
+  };
+  return (
+    <Modal wide title={`Change · ${a.title}`} onClose={onClose}
+      footer={<><button className="btn ghost" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save'}</button></>}>
+      <div className="stack">
+        <small className="muted">{a.group_id ? `Group · ${a.group_name}` : `Student · ${a.user_name}`}. Changes apply right away.</small>
+        <RulesFields f={f} set={set} setF={setF} />
+      </div>
+    </Modal>
   );
 }

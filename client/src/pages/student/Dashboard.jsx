@@ -13,7 +13,7 @@ import { IconArrow, IconBolt, IconCheck, IconClock, IconQuiz, IconTrophy, IconTa
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const st = useAsync(() => Promise.all([api.get('/me/analytics'), api.get('/quizzes'), api.get('/placement'), api.get('/me/report'), api.get('/leaderboard?period=week').catch(() => null), api.get('/assignments').catch(() => null), api.get('/goal').catch(() => null)]), []);
+  const st = useAsync(() => Promise.all([api.get('/me/analytics'), api.get('/quizzes'), api.get('/placement'), api.get('/me/report'), api.get('/leaderboard?period=week').catch(() => null), api.get('/assignments').catch(() => null), api.get('/goal').catch(() => null), api.get('/math').catch(() => null)]), []);
   const first = user.name.split(' ')[0];
   const [pickExam, setPickExam] = useState(false);
   const examLeft = daysUntil(user.exam_date);
@@ -22,7 +22,7 @@ export default function Dashboard() {
   return (
     <div className="page">
       {(needExam || pickExam) && <ExamPicker value={user.exam_date} required={needExam} onClose={() => setPickExam(false)} />}
-      <Gate state={st}>{([a, quizzes, pl, rep, lb, asg, goal]) => {
+      <Gate state={st}>{([a, quizzes, pl, rep, lb, asg, goal, math]) => {
         const next = quizzes.find((q) => q.status === 'in_progress') || quizzes.find((q) => q.status === 'new') || quizzes[0];
         const all = combine(a, rep);
         const points = all.trend.map((t, i) => ({ value: t.est, label: `${t.title} (${fmtDate(t.date)})`, short: i + 1 }));
@@ -40,12 +40,12 @@ export default function Dashboard() {
 
                 {goal && !goal.empty && <div className="d-goal"><DailyGoal g={goal} /></div>}
                 {!user.access?.can_practice && <div className="d-pay"><PaywallBanner /></div>}
-                {!pl.results.length && (
-                  <Link to="/placement" className="pl-invite d-pl">
-                    <span className="grow"><b>Find your level — optional</b><span className="muted"> · a short placement test shows your SAT estimate and what to study first (about 40 min).</span></span>
-                    <span className="btn soft sm">Take it <IconArrow width={16} height={16} /></span>
-                  </Link>
-                )}
+                <FirstSteps steps={[
+                  { done: !!pl.results.length, to: '/placement', title: 'Find your level', text: 'A short placement test (about 40 min) shows your SAT estimate and what to study first.' },
+                  { done: all.answered > 0, to: '/roadmap', title: 'Start the roadmap', text: 'Lesson 1 explains how the Digital SAT works. Each step opens the next.' },
+                  { done: !!math?.done, to: '/math', title: 'Try SAT Math', text: 'Read a worked example, then solve one with the Desmos calculator.' },
+                  { done: (goal?.words?.done || 0) + (goal?.words?.due || 0) > 0, to: '/vocab', title: 'Learn your first words', text: 'Word Vault: 10 SAT words a day, with spaced review.' },
+                ]} />
 
                 <Card className="d-road">
                   <div className="card-title"><h2>{"The 200 → 800 road"}</h2><Link to="/roadmap" className="btn soft sm">Roadmap <IconArrow width={16} height={16} /></Link></div>
@@ -193,4 +193,31 @@ export function combine(a, r) {
     minutes,
     weak, activeDays: [...days].sort(), recent: tests,
   };
+}
+
+/** New students: four first steps with ticks; hidden once everything is done or the student closes it. */
+function FirstSteps({ steps }) {
+  const [hidden, setHidden] = useState(() => { try { return localStorage.getItem('first-steps-hidden') === '1'; } catch { return false; } });
+  const left = steps.filter((x) => !x.done).length;
+  if (hidden || !left) return null;
+  const nextI = steps.findIndex((x) => !x.done);
+  return (
+    <Card className="fs-card">
+      <div className="card-title">
+        <div><h2>Your first steps</h2><small className="muted">{steps.length - left} of {steps.length} done</small></div>
+        <button className="btn ghost sm" onClick={() => { setHidden(true); try { localStorage.setItem('first-steps-hidden', '1'); } catch { /* ignore */ } }}>Hide</button>
+      </div>
+      <ol className="fs-list">
+        {steps.map((x, i) => (
+          <li key={x.to} className={`${x.done ? 'done' : ''} ${i === nextI ? 'next' : ''}`}>
+            <Link to={x.to}>
+              <span className="fs-n">{x.done ? <IconCheck width={16} height={16} /> : i + 1}</span>
+              <span className="grow"><b>{x.title}</b><small>{x.text}</small></span>
+              {!x.done && <IconArrow width={16} height={16} />}
+            </Link>
+          </li>
+        ))}
+      </ol>
+    </Card>
+  );
 }

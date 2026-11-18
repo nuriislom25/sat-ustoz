@@ -8,11 +8,12 @@ import { Avatar, Spinner } from './ui.jsx';
 import SupportChat from './ChatLater.jsx';
 import {
   IconBookmark, IconBriefcase, IconChats, IconChart, IconDashboard, IconLayers, IconLogout, IconMenu, IconMoon,
-  IconQuiz, IconRoad, IconSun, IconUsers, IconCrown, IconKey, IconSettings, IconTarget, IconBolt, IconGlobe, IconSend, IconBook, IconGame, IconMore, Logo, IconTrophy, IconDoc, IconLive, IconConsult, IconVolume, IconMute, IconWallet, IconTask, IconFlag } from './icons.jsx';
+  IconQuiz, IconRoad, IconSun, IconUsers, IconCrown, IconKey, IconSettings, IconTarget, IconBolt, IconGlobe, IconSend, IconBook, IconGame, IconMore, Logo, IconTrophy, IconDoc, IconLive, IconConsult, IconVolume, IconMute, IconWallet, IconTask, IconFlag, IconMath } from './icons.jsx';
 
 const STUDENT_NAV = [
   { to: '/', label: 'Dashboard', icon: IconDashboard, end: true, c: '#2A55E5' },
   { to: '/roadmap', label: 'Roadmap', icon: IconRoad, c: '#F28B4E' },
+  { to: '/math', label: 'Math', icon: IconMath, c: '#0E9F6E' },
   { to: '/assignments', label: 'Assignments', icon: IconTask, c: '#0E9F6E' },
   { to: '/vocab', label: 'Word Vault', icon: IconBook, c: '#E8A93C' },
   { to: '/game', label: 'Word Arena', icon: IconGame, c: '#8E5CF7' },
@@ -31,6 +32,7 @@ const STUDENT_NAV = [
 const STUDENT_TABS = [
   { to: '/', label: 'Home', icon: IconDashboard, end: true, c: '#2A55E5' },
   { to: '/roadmap', label: 'Roadmap', icon: IconRoad, c: '#F28B4E' },
+  { to: '/math', label: 'Math', icon: IconMath, c: '#0E9F6E' },
   { to: '/vocab', label: 'Words', icon: IconBook, c: '#E8A93C' },
   { to: '/practice', label: 'Practice', icon: IconBolt, c: '#E2553D', also: ['/question-bank'] },
 ];
@@ -50,6 +52,7 @@ const MASTER_NAV = [
   { to: '/assignments', label: 'Assignments', icon: IconTask, c: '#0E9F6E' },
   { to: '/roadmap', label: 'Roadmap', icon: IconRoad, c: '#F28B4E' },
   { to: '/question-bank/manage', label: 'Question Bank', icon: IconTarget, c: '#1E8E4E' },
+  { to: '/math', label: 'SAT Math', icon: IconMath, c: '#0E9F6E' },
   { to: '/reports', label: 'Question reports', icon: IconFlag, c: '#D9425B' },
   { to: '/quality', label: 'Question quality', icon: IconChart, c: '#2A55E5' },
   { to: '/full-mocks', label: 'Full Mocks', icon: IconDoc, c: '#C2410C' },
@@ -66,7 +69,7 @@ const MASTER_NAV = [
 // admin accounts see only the sections the teacher gave them (admins.js on the server checks the same)
 const SECTION = {
   '/students': 'students', '/groups': 'students', '/assignments': 'students', '/consultations': 'students', '/live': 'students', '/leaderboard': 'students', '/progress': 'students',
-  '/quizzes': 'content', '/roadmap': 'content', '/question-bank/manage': 'content', '/reports': 'content', '/quality': 'content', '/full-mocks': 'content', '/vocab': 'content', '/game': 'content', '/website': 'content',
+  '/quizzes': 'content', '/roadmap': 'content', '/question-bank/manage': 'content', '/reports': 'content', '/quality': 'content', '/full-mocks': 'content', '/vocab': 'content', '/game': 'content', '/website': 'content', '/math': 'content',
   '/finance': 'finance', '/support': 'support', '/settings': 'settings', '/admins': 'owner',
 };
 export const staffPerms = (user) => { if (user?.role !== 'master' || user.admin_perms == null) return null; try { return JSON.parse(user.admin_perms); } catch { return []; } };
@@ -147,7 +150,7 @@ export default function Layout() {
         </div>
         <main className="main"><Suspense fallback={<div style={{ minHeight: '50vh', display: 'grid', placeItems: 'center' }}><Spinner /></div>}><Outlet /></Suspense></main>
         {user.role === 'student' && <SupportChat />}
-        <nav className="tabbar" aria-label="Quick menu">
+        <nav className={`tabbar ${user.role === 'student' ? 'six' : ''}`} aria-label="Quick menu">
           {(user.role === 'master' ? MASTER_TABS.filter((n) => canSee(user, n.to)) : STUDENT_TABS).map((n) => (
             <NavLink key={n.to} to={n.to} end={n.end} style={{ '--c': n.c || '#2A55E5' }} className={({ isActive }) => (isActive || on(n) ? 'active' : '')}>{({ isActive }) => (<><n.icon width={22} height={22} weight={isActive || on(n) ? 'fill' : 'duotone'} /><span>{n.label}</span></>)}</NavLink>
           ))}

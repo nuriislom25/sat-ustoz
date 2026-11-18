@@ -20,7 +20,7 @@ export const CSP = [
   "font-src 'self' data:",
   "media-src 'self' blob: https:",
   "connect-src 'self' https://accounts.google.com/gsi/ https://video.bunnycdn.com",
-  "frame-src 'self' blob: https://accounts.google.com https://player.mediadelivery.net https://iframe.mediadelivery.net https://www.youtube-nocookie.com https://www.youtube.com https://player.vimeo.com https://drive.google.com",
+  "frame-src 'self' blob: https://www.desmos.com https://accounts.google.com https://player.mediadelivery.net https://iframe.mediadelivery.net https://www.youtube-nocookie.com https://www.youtube.com https://player.vimeo.com https://drive.google.com",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

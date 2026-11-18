@@ -19,27 +19,36 @@ export async function migrateAssignments() {
     created_by INTEGER REFERENCES users(id) ON DELETE SET NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now());
   CREATE INDEX IF NOT EXISTS idx_assign_user ON assignments(user_id);
   CREATE INDEX IF NOT EXISTS idx_assign_group ON assignments(group_id);
-  ALTER TABLE assignments ENABLE ROW LEVEL SECURITY;`);
+  ALTER TABLE assignments ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE assignments ADD COLUMN IF NOT EXISTS close_at_due BOOLEAN NOT NULL DEFAULT false;
+  CREATE TABLE IF NOT EXISTS assignment_grants (assignment_id INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, extra INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (assignment_id, user_id));
+  ALTER TABLE assignment_grants ENABLE ROW LEVEL SECURITY;`);
 }
 
 /** The student's results per quiz: best %, tries, open attempt. */
-async function quizResults(userId, quizIds) {
+async function quizResults(userId, quizIds, since = null) {
   if (!quizIds.length) return new Map();
   const rows = await db.all(`SELECT quiz_id, COUNT(finished_at) AS tries,
       MAX(CASE WHEN finished_at IS NOT NULL AND total > 0 THEN ROUND(100.0 * score / total) END) AS best,
       MAX(CASE WHEN finished_at IS NULL THEN id END) AS open_id,
       MAX(finished_at) AS last_at
-    FROM attempts WHERE user_id = ? AND quiz_id = ANY(?::int[]) GROUP BY quiz_id`, [userId, quizIds]);
+    FROM attempts WHERE user_id = ? AND quiz_id = ANY(?::int[]) ${since ? 'AND started_at >= ?' : ''} GROUP BY quiz_id`, since ? [userId, quizIds, since] : [userId, quizIds]);
   return new Map(rows.map((r) => [r.quiz_id, { tries: Number(r.tries), best: r.best == null ? null : Number(r.best), open_id: r.open_id, last_at: r.last_at }]));
 }
 
-function statusOf(r, pass, allowed) {
+/** closed = the deadline passed and the teacher closes the task at the deadline */
+function statusOf(r, pass, allowed, closed = false) {
+  if (r?.open_id && !closed) return 'in_progress';
+  if (r && r.best != null && r.best >= pass) return 'passed';
+  if (closed) return 'closed';
   if (!r) return 'new';
-  if (r.open_id) return 'in_progress';
-  if (r.best != null && r.best >= pass) return 'passed';
   if (r.tries > 0) return allowed && r.tries >= allowed ? 'failed' : 'retake';
   return 'new';
 }
+const isClosed = (a) => !!(a.close_at_due && a.due_at && new Date(a.due_at) < new Date());
+/** Extra tries the teacher gave one student on one assignment. */
+const grantsFor = async (userId, ids) => (ids.length ? new Map((await db.all('SELECT assignment_id, extra FROM assignment_grants WHERE user_id = ? AND assignment_id = ANY(?::int[])', [userId, ids])).map((r) => [r.assignment_id, r.extra])) : new Map());
 
 /** Teacher assignments that apply to this user (directly or through the group). */
 const teacherRows = (user) => db.all(`SELECT a.*, q.title, q.duration_min, (SELECT COUNT(*) FROM questions x WHERE x.quiz_id = q.id) AS questions
@@ -67,11 +76,15 @@ export async function assignmentsFor(user, roadmapFor) {
         locked: s.status === 'locked', lock_reason: s.status === 'locked' ? `Finish “${steps[i - 1]?.title || 'the previous step'}” to unlock` : null });
     }
   });
-  for (const a of await teacherRows(user)) {
+  const trows = await teacherRows(user);
+  const grants = await grantsFor(user.id, trows.map((a) => a.id));
+  for (const a of trows) {
+    const extra = grants.get(a.id) || 0;
     out.push({ key: `t${a.id}`, id: a.id, source: a.group_id ? 'group' : 'teacher', type: a.type, title: a.title, quiz_id: a.quiz_id, step: null,
-      pass_pct: a.pass_pct, attempts_allowed: a.attempts_allowed, due_at: a.due_at, note: a.note, minutes: a.duration_min, questions: Number(a.questions || 0), locked: false });
+      pass_pct: a.pass_pct, attempts_allowed: a.attempts_allowed ? a.attempts_allowed + extra : 0, due_at: a.due_at, close_at_due: !!a.close_at_due,
+      note: a.note, minutes: a.duration_min, questions: Number(a.questions || 0), locked: false, since: a.created_at });
   }
-  const res = await quizResults(user.id, [...new Set(out.map((a) => a.quiz_id).filter(Boolean))]);
+  const res = await quizResults(user.id, [...new Set(out.filter((a) => !a.since).map((a) => a.quiz_id).filter(Boolean))]);
   const openExams = new Set((await db.all("SELECT item_id FROM qbank_mocks WHERE user_id = ? AND item_id IS NOT NULL AND finished_at IS NULL AND started_at > now() - (COALESCE(minutes, 32) || ' minutes')::interval", [user.id])).map((r) => r.item_id));
   for (const a of out) {
     if (a.type === 'exam') {
@@ -79,9 +92,12 @@ export async function assignmentsFor(user, roadmapFor) {
       a.status = a.locked ? 'locked' : a.open_attempt ? 'in_progress' : a.best != null && a.best >= a.pass_pct ? 'passed' : a.tries ? 'retake' : 'new';
       continue;
     }
-    const r = res.get(a.quiz_id);
+    // a teacher task counts only the tries made after it was given
+    const r = a.since ? (await quizResults(user.id, [a.quiz_id], a.since)).get(a.quiz_id) : res.get(a.quiz_id);
     a.best = r?.best ?? null; a.tries = r?.tries || 0; a.open_attempt = r?.open_id || null;
-    a.status = a.locked ? 'locked' : statusOf(r, a.pass_pct, a.attempts_allowed);
+    a.status = a.locked ? 'locked' : statusOf(r, a.pass_pct, a.attempts_allowed, a.since ? isClosed(a) : false);
+    if (a.attempts_allowed) a.tries_left = Math.max(0, a.attempts_allowed - a.tries);
+    delete a.since;
     if (a.retake && !a.locked) {
       // Exam A / B pair: passing either completes it; the next one opens after the waiting time
       if (a.retake.passed) a.status = 'passed';
@@ -97,7 +113,14 @@ export async function assignmentsFor(user, roadmapFor) {
 /** Can this user open this roadmap / assigned quiz right now? */
 export async function assignedQuizOpen(user, quizId, roadmapFor) {
   const list = await assignmentsFor(user, roadmapFor);
-  return list.some((a) => a.quiz_id === Number(quizId) && !a.locked && a.status !== 'failed' && a.status !== 'waiting');
+  return list.some((a) => a.quiz_id === Number(quizId) && !a.locked && !['failed', 'waiting', 'closed'].includes(a.status));
+}
+
+/** A new try is blocked when every teacher task for this quiz is out of tries or closed at its deadline (null = allowed). */
+export async function assignmentBlock(user, quizId, roadmapFor) {
+  const mine = (await assignmentsFor(user, roadmapFor)).filter((a) => a.quiz_id === Number(quizId) && a.source !== 'roadmap');
+  if (!mine.length || mine.some((a) => !['failed', 'closed'].includes(a.status))) return null;
+  return mine.some((a) => a.status === 'closed') ? 'The deadline for this assignment has passed. Ask your teacher for more time.' : 'You have used all tries for this assignment. Ask your teacher for another try.';
 }
 
 export function registerAssignments(app, { h, bad, requireMaster, requireStudent, roadmapFor }) {
@@ -123,11 +146,14 @@ export function registerAssignments(app, { h, bad, requireMaster, requireStudent
       const students = a.user_id ? [{ id: a.user_id, name: a.user_name }] : await db.all("SELECT id, name FROM users WHERE role = 'student' AND group_id = ? ORDER BY name", [a.group_id]);
       let passed = 0; let started = 0;
       const per = [];
+      const g = new Map((await db.all('SELECT user_id, extra FROM assignment_grants WHERE assignment_id = ?', [a.id])).map((x) => [x.user_id, x.extra]));
       for (const s of students) {
-        const r = (await quizResults(s.id, [a.quiz_id])).get(a.quiz_id);
-        const st = statusOf(r, a.pass_pct, a.attempts_allowed);
+        const r = (await quizResults(s.id, [a.quiz_id], a.created_at)).get(a.quiz_id);
+        const extra = g.get(s.id) || 0;
+        const allowed = a.attempts_allowed ? a.attempts_allowed + extra : 0;
+        const st = statusOf(r, a.pass_pct, allowed, isClosed(a));
         if (st === 'passed') passed++; if (st !== 'new') started++;
-        per.push({ id: s.id, name: s.name, status: st, best: r?.best ?? null, tries: r?.tries || 0 });
+        per.push({ id: s.id, name: s.name, status: st, best: r?.best ?? null, tries: r?.tries || 0, allowed, extra });
       }
       out.push({ ...a, students: per, total: students.length, passed, started });
     }
@@ -145,16 +171,42 @@ export function registerAssignments(app, { h, bad, requireMaster, requireStudent
     const allowed = Math.max(0, Math.min(20, Math.round(+b.attempts_allowed || 0)));
     const pass = Math.max(10, Math.min(100, Math.round(+b.pass_pct || 70)));
     const note = String(b.note || '').trim().slice(0, 300);
+    const closeAt = !!(due && b.close_at_due);
     const made = [];
     await db.tx(async (t) => {
-      if (groupId) made.push((await t.one('INSERT INTO assignments (quiz_id, group_id, due_at, attempts_allowed, pass_pct, note, created_by) VALUES (?,?,?,?,?,?,?) RETURNING id', [quiz.id, groupId, due, allowed, pass, note, req.user.id])).id);
-      for (const u of userIds) made.push((await t.one('INSERT INTO assignments (quiz_id, user_id, due_at, attempts_allowed, pass_pct, note, created_by) VALUES (?,?,?,?,?,?,?) RETURNING id', [quiz.id, u, due, allowed, pass, note, req.user.id])).id);
+      if (groupId) made.push((await t.one('INSERT INTO assignments (quiz_id, group_id, due_at, attempts_allowed, pass_pct, note, close_at_due, created_by) VALUES (?,?,?,?,?,?,?,?) RETURNING id', [quiz.id, groupId, due, allowed, pass, note, closeAt, req.user.id])).id);
+      for (const u of userIds) made.push((await t.one('INSERT INTO assignments (quiz_id, user_id, due_at, attempts_allowed, pass_pct, note, close_at_due, created_by) VALUES (?,?,?,?,?,?,?,?) RETURNING id', [quiz.id, u, due, allowed, pass, note, closeAt, req.user.id])).id);
     });
     // Telegram for students who linked the bot
     const targets = groupId ? (await db.all("SELECT id FROM users WHERE role = 'student' AND group_id = ?", [groupId])).map((r) => r.id) : userIds;
     const when = due ? ` · due ${new Date(due).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Asia/Tashkent' })}` : '';
     for (const id of targets.slice(0, 200)) notifyUser(id, `📝 New assignment: <b>${quiz.title.replace(/[<>&]/g, '')}</b>${when}\nOpen ustozsat.uz → Assignments`);
     res.json({ ids: made });
+  }));
+
+  // change the deadline, tries, pass mark or note of a task already given
+  app.put('/api/assignments/:id', requireMaster, h(async (req, res) => {
+    const a = await db.one('SELECT * FROM assignments WHERE id = ?', [Number(req.params.id)]);
+    if (!a) return bad(res, 'Assignment not found', 404);
+    const b = req.body || {};
+    const due = 'due_at' in b ? (b.due_at && !Number.isNaN(Date.parse(b.due_at)) ? new Date(b.due_at).toISOString() : null) : a.due_at;
+    const allowed = 'attempts_allowed' in b ? Math.max(0, Math.min(20, Math.round(+b.attempts_allowed || 0))) : a.attempts_allowed;
+    const pass = 'pass_pct' in b ? Math.max(10, Math.min(100, Math.round(+b.pass_pct || 70))) : a.pass_pct;
+    const note = 'note' in b ? String(b.note || '').trim().slice(0, 300) : a.note;
+    const closeAt = 'close_at_due' in b ? !!(due && b.close_at_due) : !!(due && a.close_at_due);
+    await db.run('UPDATE assignments SET due_at = ?, attempts_allowed = ?, pass_pct = ?, note = ?, close_at_due = ? WHERE id = ?', [due, allowed, pass, note, closeAt, a.id]);
+    res.json({ ok: true });
+  }));
+
+  // one more try for one student (e.g. after a talk), without changing the task for everyone
+  app.post('/api/assignments/:id/grant', requireMaster, h(async (req, res) => {
+    const a = await db.one('SELECT id FROM assignments WHERE id = ?', [Number(req.params.id)]);
+    const uid = Number(req.body?.user_id);
+    if (!a || !uid) return bad(res, 'Assignment not found', 404);
+    const n = Math.max(-20, Math.min(20, Math.round(+req.body?.extra || 1)));
+    await db.run(`INSERT INTO assignment_grants (assignment_id, user_id, extra) VALUES (?, ?, GREATEST(0, ?))
+      ON CONFLICT (assignment_id, user_id) DO UPDATE SET extra = GREATEST(0, assignment_grants.extra + ?)`, [a.id, uid, n, n]);
+    res.json({ ok: true });
   }));
 
   app.delete('/api/assignments/:id', requireMaster, h(async (req, res) => {

@@ -1,0 +1,954 @@
+{
+ "domains": [
+  {
+   "id": "alg",
+   "name": "Algebra",
+   "skills": [
+    {
+     "id": "lin1",
+     "name": "Linear equations in one variable"
+    },
+    {
+     "id": "linf",
+     "name": "Linear functions"
+    },
+    {
+     "id": "lin2",
+     "name": "Linear equations in two variables"
+    },
+    {
+     "id": "sys",
+     "name": "Systems of two linear equations"
+    },
+    {
+     "id": "ineq",
+     "name": "Linear inequalities"
+    }
+   ]
+  },
+  {
+   "id": "adv",
+   "name": "Advanced Math",
+   "skills": [
+    {
+     "id": "equiv",
+     "name": "Equivalent expressions"
+    },
+    {
+     "id": "nleq",
+     "name": "Nonlinear equations"
+    },
+    {
+     "id": "nlf",
+     "name": "Nonlinear functions"
+    }
+   ]
+  },
+  {
+   "id": "psda",
+   "name": "Problem-Solving and Data Analysis",
+   "skills": [
+    {
+     "id": "ratio",
+     "name": "Ratios, rates and units"
+    },
+    {
+     "id": "pct",
+     "name": "Percentages"
+    },
+    {
+     "id": "data1",
+     "name": "One-variable data"
+    },
+    {
+     "id": "data2",
+     "name": "Two-variable data"
+    },
+    {
+     "id": "prob",
+     "name": "Probability"
+    },
+    {
+     "id": "infer",
+     "name": "Inference from samples"
+    }
+   ]
+  },
+  {
+   "id": "geo",
+   "name": "Geometry and Trigonometry",
+   "skills": [
+    {
+     "id": "area",
+     "name": "Area and volume"
+    },
+    {
+     "id": "lines",
+     "name": "Lines, angles and triangles"
+    },
+    {
+     "id": "right",
+     "name": "Right triangles and trigonometry"
+    },
+    {
+     "id": "circ",
+     "name": "Circles"
+    }
+   ]
+  }
+ ],
+ "questions": [
+  {
+   "id": "m-a1",
+   "domain": "alg",
+   "skill": "lin1",
+   "difficulty": "easy",
+   "prompt": "If $3x + 7 = 22$, what is the value of $x$?",
+   "explanation": "Subtract 7 from both sides: $3x = 15$. Divide by 3: $x = 5$.",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "3",
+    "5",
+    "7",
+    "15"
+   ],
+   "answer": "B"
+  },
+  {
+   "id": "m-a2",
+   "domain": "alg",
+   "skill": "lin1",
+   "difficulty": "easy",
+   "prompt": "If $\\dfrac{x}{4} - 2 = 3$, what is the value of $x$?",
+   "explanation": "Add 2 to both sides: $\\dfrac{x}{4} = 5$. Multiply by 4: $x = 20$.",
+   "tip": "",
+   "kind": "spr",
+   "answers": [
+    "20"
+   ]
+  },
+  {
+   "id": "m-a3",
+   "domain": "alg",
+   "skill": "linf",
+   "difficulty": "easy",
+   "prompt": "The function $f$ is defined by $f(x) = 4x - 9$. What is the value of $f(5)$?",
+   "explanation": "Put 5 in place of $x$: $f(5) = 4(5) - 9 = 20 - 9 = 11$.",
+   "tip": "Type f(x)=4x-9, then f(5) on the next line.",
+   "kind": "mcq",
+   "options": [
+    "$11$",
+    "$20$",
+    "$29$",
+    "$-11$"
+   ],
+   "answer": "A"
+  },
+  {
+   "id": "m-a4",
+   "domain": "alg",
+   "skill": "lin2",
+   "difficulty": "medium",
+   "prompt": "A line in the $xy$-plane passes through the points $(2, 5)$ and $(6, 13)$. What is the slope of the line?",
+   "explanation": "Slope $= \\dfrac{13 - 5}{6 - 2} = \\dfrac{8}{4} = 2$.",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "$\\frac{1}{2}$",
+    "$2$",
+    "$3$",
+    "$8$"
+   ],
+   "answer": "B"
+  },
+  {
+   "id": "m-a5",
+   "domain": "alg",
+   "skill": "sys",
+   "difficulty": "medium",
+   "prompt": "$$x + y = 10$$ $$x - y = 4$$ If $(x, y)$ is the solution to the system above, what is the value of $x$?",
+   "explanation": "Add the two equations: $2x = 14$, so $x = 7$ (and $y = 3$).",
+   "tip": "Type both equations; tap the point where the lines cross: (7, 3).",
+   "kind": "mcq",
+   "options": [
+    "$3$",
+    "$6$",
+    "$7$",
+    "$14$"
+   ],
+   "answer": "C"
+  },
+  {
+   "id": "m-a6",
+   "domain": "alg",
+   "skill": "ineq",
+   "difficulty": "medium",
+   "prompt": "Which of the following values of $x$ satisfies $5x - 3 > 17$?",
+   "explanation": "$5x > 20$, so $x > 4$. Only 5 is greater than 4 (4 itself is not, because the sign is $>$, not $\\ge$).",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "$2$",
+    "$3$",
+    "$4$",
+    "$5$"
+   ],
+   "answer": "D"
+  },
+  {
+   "id": "m-a7",
+   "domain": "alg",
+   "skill": "sys",
+   "difficulty": "hard",
+   "prompt": "$$2x + 3y = 12$$ $$4x - y = 10$$ If $(x, y)$ is the solution to the system above, what is the value of $x + y$?",
+   "explanation": "From the second equation $y = 4x - 10$. Substitute: $2x + 3(4x - 10) = 12$, so $14x = 42$ and $x = 3$. Then $y = 4(3) - 10 = 2$, and $x + y = 5$.",
+   "tip": "Graph both lines; the intersection is (3, 2).",
+   "kind": "spr",
+   "answers": [
+    "5"
+   ]
+  },
+  {
+   "id": "m-a8",
+   "domain": "alg",
+   "skill": "linf",
+   "difficulty": "medium",
+   "prompt": "A taxi ride costs $C(m) = 2.5m + 4$ dollars for a ride of $m$ miles. What does the number 4 represent?",
+   "explanation": "When $m = 0$, $C = 4$: the 4 dollars are paid even before any miles are driven, so it is a fixed starting fee. The 2.5 is the cost per mile.",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "The cost for each mile",
+    "A fixed fee paid for every ride",
+    "The total cost of a 4-mile ride",
+    "The number of miles per dollar"
+   ],
+   "answer": "B"
+  },
+  {
+   "id": "m-a9",
+   "domain": "alg",
+   "skill": "sys",
+   "difficulty": "hard",
+   "prompt": "$$3x + 2y = 7$$ $$6x + ky = 10$$ In the system above, $k$ is a constant. For what value of $k$ does the system have no solution?",
+   "explanation": "No solution means parallel lines: same slope, different intercepts. Multiplying the first equation by 2 gives $6x + 4y = 14$. With $k = 4$ the left sides match but $14 \\ne 10$, so the lines never meet.",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "$2$",
+    "$3$",
+    "$4$",
+    "$6$"
+   ],
+   "answer": "C"
+  },
+  {
+   "id": "m-a10",
+   "domain": "alg",
+   "skill": "lin2",
+   "difficulty": "easy",
+   "prompt": "Which point lies on the line $y = 3x - 1$?",
+   "explanation": "Test each point: for $(1, 2)$, $3(1) - 1 = 2$. ✓ The others give $-1$, $5$ and $8$.",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "$(0, 1)$",
+    "$(1, 2)$",
+    "$(2, 4)$",
+    "$(3, 7)$"
+   ],
+   "answer": "B"
+  },
+  {
+   "id": "m-a11",
+   "domain": "alg",
+   "skill": "lin1",
+   "difficulty": "medium",
+   "prompt": "If $2(x - 3) = x + 4$, what is the value of $x$?",
+   "explanation": "Distribute: $2x - 6 = x + 4$. Subtract $x$: $x - 6 = 4$. Add 6: $x = 10$.",
+   "tip": "",
+   "kind": "spr",
+   "answers": [
+    "10"
+   ]
+  },
+  {
+   "id": "m-m1",
+   "domain": "adv",
+   "skill": "equiv",
+   "difficulty": "easy",
+   "prompt": "Which expression is equivalent to $(x + 3)^2$?",
+   "explanation": "$(x+3)(x+3) = x^2 + 3x + 3x + 9 = x^2 + 6x + 9$. A common trap is forgetting the middle term.",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "$x^2 + 9$",
+    "$x^2 + 3x + 9$",
+    "$x^2 + 6x + 9$",
+    "$x^2 + 6x + 6$"
+   ],
+   "answer": "C"
+  },
+  {
+   "id": "m-m2",
+   "domain": "adv",
+   "skill": "nleq",
+   "difficulty": "medium",
+   "prompt": "What are the solutions to $x^2 - 5x + 6 = 0$?",
+   "explanation": "Find two numbers that multiply to 6 and add to $-5$: $-2$ and $-3$. So $(x - 2)(x - 3) = 0$ and $x = 2$ or $x = 3$.",
+   "tip": "Graph y=x^2-5x+6 and tap the x-intercepts.",
+   "kind": "mcq",
+   "options": [
+    "$1$ and $6$",
+    "$2$ and $3$",
+    "$-2$ and $-3$",
+    "$-1$ and $6$"
+   ],
+   "answer": "B"
+  },
+  {
+   "id": "m-m3",
+   "domain": "adv",
+   "skill": "nlf",
+   "difficulty": "easy",
+   "prompt": "The function $f$ is defined by $f(x) = 2x^2 - 3$. What is the value of $f(-2)$?",
+   "explanation": "$f(-2) = 2(-2)^2 - 3 = 2(4) - 3 = 5$. Square first, then multiply.",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "$-11$",
+    "$1$",
+    "$5$",
+    "$13$"
+   ],
+   "answer": "C"
+  },
+  {
+   "id": "m-m4",
+   "domain": "adv",
+   "skill": "equiv",
+   "difficulty": "medium",
+   "prompt": "Which expression is equivalent to $\\dfrac{x^2 - 9}{x - 3}$ for $x \\ne 3$?",
+   "explanation": "$x^2 - 9 = (x - 3)(x + 3)$, a difference of squares. Cancel $x - 3$ to get $x + 3$.",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "$x - 3$",
+    "$x + 3$",
+    "$x^2 - 3$",
+    "$3$"
+   ],
+   "answer": "B"
+  },
+  {
+   "id": "m-m5",
+   "domain": "adv",
+   "skill": "nleq",
+   "difficulty": "medium",
+   "prompt": "What is the positive solution to $x^2 + 2x - 24 = 0$?",
+   "explanation": "$(x + 6)(x - 4) = 0$, so $x = -6$ or $x = 4$. The positive solution is 4.",
+   "tip": "Graph y=x^2+2x-24; the x-intercepts are -6 and 4.",
+   "kind": "spr",
+   "answers": [
+    "4"
+   ]
+  },
+  {
+   "id": "m-m6",
+   "domain": "adv",
+   "skill": "nlf",
+   "difficulty": "medium",
+   "prompt": "A town has 500 people, and the population doubles every 3 years. Which function gives the population $P$ after $t$ years?",
+   "explanation": "Exponential growth: start value $\\times$ (growth factor)$^{\\text{number of periods}}$. The number of 3-year periods in $t$ years is $\\frac{t}{3}$, so $P = 500(2)^{t/3}$. Check: at $t = 3$, $P = 1000$. ✓",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "$P(t) = 500(2)^{t/3}$",
+    "$P(t) = 500(2)^{3t}$",
+    "$P(t) = 500 + \\frac{2t}{3}$",
+    "$P(t) = 1000^{t/3}$"
+   ],
+   "answer": "A"
+  },
+  {
+   "id": "m-m7",
+   "domain": "adv",
+   "skill": "nleq",
+   "difficulty": "hard",
+   "prompt": "The graphs of $y = x^2$ and $y = 2x + 3$ intersect at two points. What is the sum of the $x$-coordinates of these points?",
+   "explanation": "Set them equal: $x^2 = 2x + 3$, so $x^2 - 2x - 3 = 0$, $(x - 3)(x + 1) = 0$. The $x$-coordinates are 3 and $-1$; their sum is 2.",
+   "tip": "Graph both and tap the two intersection points: (-1, 1) and (3, 9).",
+   "kind": "mcq",
+   "options": [
+    "$-2$",
+    "$1$",
+    "$2$",
+    "$3$"
+   ],
+   "answer": "C"
+  },
+  {
+   "id": "m-m8",
+   "domain": "adv",
+   "skill": "equiv",
+   "difficulty": "easy",
+   "prompt": "Which expression is equivalent to $3x(2x - 5)$?",
+   "explanation": "Multiply $3x$ by each term: $3x \\cdot 2x = 6x^2$ and $3x \\cdot (-5) = -15x$.",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "$6x^2 - 5$",
+    "$6x^2 - 15x$",
+    "$5x^2 - 15x$",
+    "$6x - 15x$"
+   ],
+   "answer": "B"
+  },
+  {
+   "id": "m-m9",
+   "domain": "adv",
+   "skill": "nlf",
+   "difficulty": "medium",
+   "prompt": "What is the minimum value of the function $f(x) = (x - 4)^2 + 7$?",
+   "explanation": "A square is never negative, so $(x-4)^2 \\ge 0$, and it equals 0 when $x = 4$. The smallest value of $f$ is $0 + 7 = 7$. The vertex is $(4, 7)$.",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "$-4$",
+    "$4$",
+    "$7$",
+    "$11$"
+   ],
+   "answer": "C"
+  },
+  {
+   "id": "m-m10",
+   "domain": "adv",
+   "skill": "nleq",
+   "difficulty": "medium",
+   "prompt": "If $\\sqrt{x + 5} = 4$, what is the value of $x$?",
+   "explanation": "Square both sides: $x + 5 = 16$, so $x = 11$. Check: $\\sqrt{16} = 4$. ✓",
+   "tip": "",
+   "kind": "spr",
+   "answers": [
+    "11"
+   ]
+  },
+  {
+   "id": "m-m11",
+   "domain": "adv",
+   "skill": "equiv",
+   "difficulty": "hard",
+   "prompt": "If $x^2 - y^2 = 40$ and $x + y = 8$, what is the value of $x - y$?",
+   "explanation": "$x^2 - y^2 = (x + y)(x - y)$. So $40 = 8(x - y)$ and $x - y = 5$. No need to find $x$ and $y$.",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "$4$",
+    "$5$",
+    "$32$",
+    "$48$"
+   ],
+   "answer": "B"
+  },
+  {
+   "id": "m-d1",
+   "domain": "psda",
+   "skill": "ratio",
+   "difficulty": "easy",
+   "prompt": "A recipe uses 3 cups of flour for every 2 cups of sugar. How many cups of sugar are needed with 12 cups of flour?",
+   "explanation": "12 cups of flour is $12 \\div 3 = 4$ times the recipe, so sugar is $2 \\times 4 = 8$ cups.",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "$6$",
+    "$8$",
+    "$9$",
+    "$18$"
+   ],
+   "answer": "B"
+  },
+  {
+   "id": "m-d2",
+   "domain": "psda",
+   "skill": "pct",
+   "difficulty": "easy",
+   "prompt": "What is 15% of 80?",
+   "explanation": "$0.15 \\times 80 = 12$.",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "$8$",
+    "$12$",
+    "$15$",
+    "$65$"
+   ],
+   "answer": "B"
+  },
+  {
+   "id": "m-d3",
+   "domain": "psda",
+   "skill": "pct",
+   "difficulty": "medium",
+   "prompt": "A jacket costs \\$60. It is on sale for 25% off. What is the sale price, in dollars?",
+   "explanation": "25% of 60 is 15, so the sale price is $60 - 15 = 45$. Faster: $60 \\times 0.75 = 45$.",
+   "tip": "",
+   "kind": "spr",
+   "answers": [
+    "45"
+   ]
+  },
+  {
+   "id": "m-d4",
+   "domain": "psda",
+   "skill": "data1",
+   "difficulty": "easy",
+   "prompt": "What is the mean of the data set $4, 7, 7, 9, 13$?",
+   "explanation": "Sum $= 40$, there are 5 values, so the mean is $40 \\div 5 = 8$.",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "$7$",
+    "$8$",
+    "$9$",
+    "$13$"
+   ],
+   "answer": "B"
+  },
+  {
+   "id": "m-d5",
+   "domain": "psda",
+   "skill": "data1",
+   "difficulty": "medium",
+   "prompt": "What is the median of the data set $3, 11, 5, 8, 2, 9$?",
+   "explanation": "Order the data: $2, 3, 5, 8, 9, 11$. With 6 values, the median is the mean of the middle two: $\\frac{5 + 8}{2} = 6.5$.",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "$5$",
+    "$6.5$",
+    "$6.3$",
+    "$8$"
+   ],
+   "answer": "B"
+  },
+  {
+   "id": "m-d6",
+   "domain": "psda",
+   "skill": "prob",
+   "difficulty": "easy",
+   "prompt": "A bag has 4 red marbles and 6 blue marbles. If one marble is chosen at random, what is the probability that it is red?",
+   "explanation": "There are 10 marbles and 4 are red: $\\frac{4}{10} = \\frac{2}{5}$.",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "$\\frac{1}{4}$",
+    "$\\frac{2}{5}$",
+    "$\\frac{3}{5}$",
+    "$\\frac{2}{3}$"
+   ],
+   "answer": "B"
+  },
+  {
+   "id": "m-d7",
+   "domain": "psda",
+   "skill": "ratio",
+   "difficulty": "medium",
+   "prompt": "A car travels 150 miles in 2.5 hours. What is its average speed, in miles per hour?",
+   "explanation": "Speed $=$ distance $\\div$ time $= 150 \\div 2.5 = 60$ miles per hour.",
+   "tip": "",
+   "kind": "spr",
+   "answers": [
+    "60"
+   ]
+  },
+  {
+   "id": "m-d8",
+   "domain": "psda",
+   "skill": "pct",
+   "difficulty": "hard",
+   "prompt": "The price of a phone increased by 20%, and then the new price decreased by 20%. How does the final price compare with the original price?",
+   "explanation": "Use multipliers: $1.20 \\times 0.80 = 0.96$. The final price is 96% of the original, which is 4% less. The two 20% changes do not cancel, because the second one is taken from a bigger number.",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "It is the same",
+    "It is 4% less",
+    "It is 4% more",
+    "It is 2% less"
+   ],
+   "answer": "B"
+  },
+  {
+   "id": "m-d9",
+   "domain": "psda",
+   "skill": "data2",
+   "difficulty": "medium",
+   "prompt": "The line of best fit $y = 1.5x + 20$ models a student's test score $y$ after $x$ hours of study. What score does the model predict for 10 hours of study?",
+   "explanation": "$y = 1.5(10) + 20 = 15 + 20 = 35$.",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "$21.5$",
+    "$30$",
+    "$35$",
+    "$50$"
+   ],
+   "answer": "C"
+  },
+  {
+   "id": "m-d10",
+   "domain": "psda",
+   "skill": "infer",
+   "difficulty": "hard",
+   "prompt": "A school has 1,800 students. In a random sample of 200 students, 48 walk to school. Based on the sample, about how many students at the school walk to school?",
+   "explanation": "In the sample, $\\frac{48}{200} = 0.24$ walk. For the whole school: $0.24 \\times 1{,}800 = 432$. This works because the sample was random.",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "$48$",
+    "$240$",
+    "$432$",
+    "$480$"
+   ],
+   "answer": "C"
+  },
+  {
+   "id": "m-d11",
+   "domain": "psda",
+   "skill": "prob",
+   "difficulty": "medium",
+   "prompt": "In a class of 30 students, 12 play chess. If one student is chosen at random, what is the probability that the student plays chess? (Write your answer as a fraction or a decimal.)",
+   "explanation": "$\\frac{12}{30} = \\frac{2}{5} = 0.4$.",
+   "tip": "",
+   "kind": "spr",
+   "answers": [
+    "2/5",
+    "0.4",
+    ".4",
+    "12/30",
+    "4/10"
+   ]
+  },
+  {
+   "id": "m-g1",
+   "domain": "geo",
+   "skill": "area",
+   "difficulty": "easy",
+   "prompt": "A rectangle has a length of 8 and a width of 5. What is its area?",
+   "explanation": "Area $= $ length $\\times$ width $= 8 \\times 5 = 40$. (26 is the perimeter.)",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "$13$",
+    "$26$",
+    "$40$",
+    "$80$"
+   ],
+   "answer": "C"
+  },
+  {
+   "id": "m-g2",
+   "domain": "geo",
+   "skill": "lines",
+   "difficulty": "easy",
+   "prompt": "Two angles of a triangle measure $50^\\circ$ and $60^\\circ$. What is the measure of the third angle?",
+   "explanation": "The angles of a triangle add up to $180^\\circ$: $180 - 50 - 60 = 70$.",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "$50^\\circ$",
+    "$60^\\circ$",
+    "$70^\\circ$",
+    "$80^\\circ$"
+   ],
+   "answer": "C"
+  },
+  {
+   "id": "m-g3",
+   "domain": "geo",
+   "skill": "right",
+   "difficulty": "easy",
+   "prompt": "A right triangle has legs of length 6 and 8. What is the length of the hypotenuse?",
+   "explanation": "$c^2 = 6^2 + 8^2 = 36 + 64 = 100$, so $c = 10$. This is a 3-4-5 triangle doubled.",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "$7$",
+    "$10$",
+    "$12$",
+    "$14$"
+   ],
+   "answer": "B"
+  },
+  {
+   "id": "m-g4",
+   "domain": "geo",
+   "skill": "circ",
+   "difficulty": "easy",
+   "prompt": "A circle has a radius of 5. What is its area?",
+   "explanation": "$A = \\pi r^2 = \\pi(5)^2 = 25\\pi$. ($10\\pi$ is the circumference.)",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "$10\\pi$",
+    "$25\\pi$",
+    "$5\\pi$",
+    "$100\\pi$"
+   ],
+   "answer": "B"
+  },
+  {
+   "id": "m-g5",
+   "domain": "geo",
+   "skill": "right",
+   "difficulty": "medium",
+   "prompt": "In right triangle $ABC$, the side opposite angle $A$ has length 3, the side adjacent to angle $A$ has length 4, and the hypotenuse has length 5. What is $\\sin A$?",
+   "explanation": "SOH: $\\sin A = \\frac{\\text{opposite}}{\\text{hypotenuse}} = \\frac{3}{5}$.",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "$\\frac{3}{4}$",
+    "$\\frac{4}{5}$",
+    "$\\frac{3}{5}$",
+    "$\\frac{4}{3}$"
+   ],
+   "answer": "C"
+  },
+  {
+   "id": "m-g6",
+   "domain": "geo",
+   "skill": "area",
+   "difficulty": "medium",
+   "prompt": "A rectangular box has a length of 3, a width of 4 and a height of 5. What is its volume?",
+   "explanation": "$V = l \\times w \\times h = 3 \\times 4 \\times 5 = 60$.",
+   "tip": "",
+   "kind": "spr",
+   "answers": [
+    "60"
+   ]
+  },
+  {
+   "id": "m-g7",
+   "domain": "geo",
+   "skill": "circ",
+   "difficulty": "hard",
+   "prompt": "The equation of a circle in the $xy$-plane is $(x - 2)^2 + (y + 3)^2 = 16$. What are the center and the radius of the circle?",
+   "explanation": "The form is $(x - h)^2 + (y - k)^2 = r^2$. Here $h = 2$, $k = -3$ (because $y + 3 = y - (-3)$), and $r^2 = 16$, so $r = 4$.",
+   "tip": "Type the equation and look at the circle: its center is at (2, -3) and it reaches 4 units each way.",
+   "kind": "mcq",
+   "options": [
+    "Center $(2, -3)$, radius 4",
+    "Center $(-2, 3)$, radius 4",
+    "Center $(2, -3)$, radius 16",
+    "Center $(-2, 3)$, radius 16"
+   ],
+   "answer": "A"
+  },
+  {
+   "id": "m-g8",
+   "domain": "geo",
+   "skill": "lines",
+   "difficulty": "easy",
+   "prompt": "An angle of $115^\\circ$ and an angle of $x^\\circ$ together form a straight line. What is the value of $x$?",
+   "explanation": "Angles on a straight line add up to $180^\\circ$: $x = 180 - 115 = 65$.",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "$25$",
+    "$65$",
+    "$75$",
+    "$115$"
+   ],
+   "answer": "B"
+  },
+  {
+   "id": "m-g9",
+   "domain": "geo",
+   "skill": "lines",
+   "difficulty": "hard",
+   "prompt": "Triangle $ABC$ is similar to triangle $DEF$, with $A$ matching $D$, $B$ matching $E$ and $C$ matching $F$. If $AB = 6$, $DE = 9$ and $BC = 8$, what is $EF$?",
+   "explanation": "Similar triangles have proportional sides. The scale factor is $\\frac{DE}{AB} = \\frac{9}{6} = 1.5$. So $EF = 1.5 \\times 8 = 12$.",
+   "tip": "",
+   "kind": "spr",
+   "answers": [
+    "12"
+   ]
+  },
+  {
+   "id": "m-g10",
+   "domain": "geo",
+   "skill": "right",
+   "difficulty": "hard",
+   "prompt": "In a right triangle, $\\cos x = \\dfrac{5}{13}$ for one of the acute angles $x$. What is $\\sin x$?",
+   "explanation": "Draw the triangle: adjacent $= 5$, hypotenuse $= 13$, so the opposite side is $\\sqrt{13^2 - 5^2} = \\sqrt{144} = 12$. Then $\\sin x = \\frac{12}{13}$.",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "$\\frac{5}{12}$",
+    "$\\frac{12}{13}$",
+    "$\\frac{13}{12}$",
+    "$\\frac{8}{13}$"
+   ],
+   "answer": "B"
+  },
+  {
+   "id": "m-g11",
+   "domain": "geo",
+   "skill": "circ",
+   "difficulty": "medium",
+   "prompt": "A circle has a radius of 6. What is the length of an arc with a central angle of $60^\\circ$?",
+   "explanation": "The arc is $\\frac{60}{360} = \\frac{1}{6}$ of the circumference $2\\pi(6) = 12\\pi$, so it is $2\\pi$.",
+   "tip": "",
+   "kind": "mcq",
+   "options": [
+    "$\\pi$",
+    "$2\\pi$",
+    "$6\\pi$",
+    "$12\\pi$"
+   ],
+   "answer": "B"
+  }
+ ],
+ "lessons": [
+  {
+   "id": "alg-1",
+   "domain": "alg",
+   "title": "Solve a linear equation",
+   "skill": "lin1",
+   "minutes": 4,
+   "problem": "Solve $4(x - 2) = 2x + 6$.",
+   "steps": [
+    "Open the brackets: $4x - 8 = 2x + 6$.",
+    "Move the $x$ terms to one side: subtract $2x$ from both sides, $2x - 8 = 6$.",
+    "Move the numbers to the other side: add 8, $2x = 14$.",
+    "Divide by 2: $x = 7$.",
+    "Check: $4(7 - 2) = 20$ and $2(7) + 6 = 20$. ✓"
+   ],
+   "answer": "$x = 7$",
+   "desmos": "Type y=4(x-2) and y=2x+6 on two lines. Tap the point where the lines cross: (7, 20). The x-value is the answer.",
+   "tryit": "m-a11"
+  },
+  {
+   "id": "alg-2",
+   "domain": "alg",
+   "title": "Solve a system of two equations",
+   "skill": "sys",
+   "minutes": 5,
+   "problem": "Solve the system $x + 2y = 11$ and $3x - y = 5$.",
+   "steps": [
+    "Get one letter alone. From the second equation: $y = 3x - 5$.",
+    "Put it into the first equation: $x + 2(3x - 5) = 11$.",
+    "Simplify: $7x - 10 = 11$, so $7x = 21$ and $x = 3$.",
+    "Find $y$: $y = 3(3) - 5 = 4$.",
+    "Check in the first equation: $3 + 2(4) = 11$. ✓"
+   ],
+   "answer": "$(x, y) = (3, 4)$",
+   "desmos": "Type both equations as they are (Desmos understands x+2y=11). The lines cross at (3, 4).",
+   "tryit": "m-a5"
+  },
+  {
+   "id": "adv-1",
+   "domain": "adv",
+   "title": "Solve a quadratic by factoring",
+   "skill": "nleq",
+   "minutes": 5,
+   "problem": "Solve $x^2 - x - 12 = 0$.",
+   "steps": [
+    "Look for two numbers that multiply to $-12$ and add to $-1$ (the number in front of $x$).",
+    "$-4$ and $3$ work: $(-4)(3) = -12$ and $-4 + 3 = -1$.",
+    "Write the factors: $(x - 4)(x + 3) = 0$.",
+    "A product is zero only if one factor is zero: $x - 4 = 0$ or $x + 3 = 0$.",
+    "So $x = 4$ or $x = -3$."
+   ],
+   "answer": "$x = 4$ or $x = -3$",
+   "desmos": "Graph y=x^2-x-12 and tap where the curve crosses the x-axis: -3 and 4. This also works when the quadratic does not factor nicely.",
+   "tryit": "m-m5"
+  },
+  {
+   "id": "adv-2",
+   "domain": "adv",
+   "title": "Read an exponential model",
+   "skill": "nlf",
+   "minutes": 4,
+   "problem": "A deposit of \\$1,000 grows by 5% each year. Write a function for its value after $t$ years and find the value after 3 years.",
+   "steps": [
+    "Growing by 5% means multiplying by $1 + 0.05 = 1.05$ each year.",
+    "After $t$ years: $V(t) = 1000(1.05)^t$.",
+    "After 3 years: $V(3) = 1000(1.05)^3 = 1000 \\times 1.157625$.",
+    "$V(3) \\approx 1157.63$ dollars."
+   ],
+   "answer": "$V(t) = 1000(1.05)^t$; about \\$1,157.63",
+   "desmos": "Type V(t)=1000(1.05)^t, then V(3) on the next line to get the value.",
+   "tryit": "m-m6"
+  },
+  {
+   "id": "psda-1",
+   "domain": "psda",
+   "title": "Percent change",
+   "skill": "pct",
+   "minutes": 4,
+   "problem": "A price goes from \\$80 to \\$92. By what percent did it increase?",
+   "steps": [
+    "Find the change: $92 - 80 = 12$.",
+    "Divide by the ORIGINAL value: $\\frac{12}{80} = 0.15$.",
+    "Write it as a percent: $0.15 = 15\\%$.",
+    "Trap: dividing by the new value ($\\frac{12}{92}$) gives a wrong answer."
+   ],
+   "answer": "15% increase",
+   "desmos": "Type (92-80)/80 to check: 0.15.",
+   "tryit": "m-d3"
+  },
+  {
+   "id": "psda-2",
+   "domain": "psda",
+   "title": "Mean and median",
+   "skill": "data1",
+   "minutes": 4,
+   "problem": "Find the mean and the median of $2, 4, 4, 5, 10$.",
+   "steps": [
+    "Mean: add the values and divide by how many there are: $\\frac{2 + 4 + 4 + 5 + 10}{5} = \\frac{25}{5} = 5$.",
+    "Median: put the values in order and take the middle one. The order is already correct; the middle value is 4.",
+    "The mean (5) is bigger than the median (4) because the large value 10 pulls the mean up. The median does not move much when there is an outlier."
+   ],
+   "answer": "Mean 5, median 4",
+   "desmos": "Type mean([2,4,4,5,10]) and median([2,4,4,5,10]).",
+   "tryit": "m-d5"
+  },
+  {
+   "id": "geo-1",
+   "domain": "geo",
+   "title": "The Pythagorean theorem",
+   "skill": "right",
+   "minutes": 4,
+   "problem": "A right triangle has legs 5 and 12. How long is the hypotenuse?",
+   "steps": [
+    "For a right triangle: $a^2 + b^2 = c^2$, where $c$ is the side across from the right angle.",
+    "$5^2 + 12^2 = 25 + 144 = 169$.",
+    "$c = \\sqrt{169} = 13$.",
+    "Remember the common triples: 3-4-5, 5-12-13, 8-15-17 (and their multiples, like 6-8-10). They save time."
+   ],
+   "answer": "$13$",
+   "desmos": "Type sqrt(5^2+12^2).",
+   "tryit": "m-g3"
+  },
+  {
+   "id": "geo-2",
+   "domain": "geo",
+   "title": "Circles in the xy-plane",
+   "skill": "circ",
+   "minutes": 6,
+   "problem": "Find the center and radius of the circle $x^2 + y^2 - 6x + 4y - 3 = 0$.",
+   "steps": [
+    "Group the $x$ terms and the $y$ terms: $(x^2 - 6x) + (y^2 + 4y) = 3$.",
+    "Complete the square: half of $-6$ is $-3$, and $(-3)^2 = 9$; half of 4 is 2, and $2^2 = 4$. Add 9 and 4 to both sides.",
+    "$(x - 3)^2 + (y + 2)^2 = 3 + 9 + 4 = 16$.",
+    "Read it as $(x - h)^2 + (y - k)^2 = r^2$: the center is $(3, -2)$ and $r = \\sqrt{16} = 4$."
+   ],
+   "answer": "Center $(3, -2)$, radius 4",
+   "desmos": "Type the original equation. Desmos draws the circle; tap around it to see the center (3, -2) and the radius 4.",
+   "tryit": "m-g7"
+  }
+ ]
+}

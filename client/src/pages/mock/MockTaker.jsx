@@ -128,7 +128,7 @@ function Runner({ m, exam }) {
           </BBFooter>
         )}>
         {view === 'q' ? (
-          <BBSplit
+          <BBSplit id={q.id}
             left={(q.passage || q.table) ? <Highlightable key={q.id} on={hl}><Passage text={q.passage} table={q.table} /></Highlightable> : null}
             right={(
               <div key={q.id}>
