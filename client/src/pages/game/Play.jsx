@@ -309,6 +309,7 @@ function Questions({ room, token, reload }) {
 }
 
 function Board({ room, isHost, hostToken, reload }) {
+  if (isHost) return <HostBoard room={room} hostToken={hostToken} reload={reload} />;
   const end = async () => { try { await api.post(`/game/${room.code}/end`, { host_token: hostToken }); reload(); } catch { /* ignore */ } };
   const max = Math.max(1, ...room.players.map((p) => p.score));
   return (
@@ -426,5 +427,104 @@ export function JoinCode() {
         <button className="btn sun lg block" disabled={code.length !== 6}>Join</button>
       </form>
     </Shell>
+  );
+}
+
+/* ---------- host screen (projector): ranking left, live feed right, total credits, big clock ---------- */
+const short = (n) => {
+  const a = Math.abs(n);
+  if (a >= 1e6) return `${(n / 1e6).toFixed(a >= 1e7 ? 0 : 1)}M`;
+  if (a >= 1e5) return `${Math.round(n / 1e3)}K`;
+  if (a >= 1e4) return `${(n / 1e3).toFixed(1)}K`;
+  return n.toLocaleString('en-US');
+};
+const ord = (n) => { const s = ['th', 'st', 'nd', 'rd']; const v = n % 100; return s[(v - 20) % 10] || s[v] || s[0]; };
+/** A number that rolls up to its new value. */
+function Rolling({ value, format = (x) => x.toLocaleString('en-US') }) {
+  const [shown, setShown] = useState(value);
+  const from = useRef(value);
+  useEffect(() => {
+    const start = from.current; const t0 = performance.now(); let raf;
+    const step = (t) => { const k = Math.min(1, (t - t0) / 900); const v = Math.round(start + (value - start) * (1 - (1 - k) ** 3)); setShown(v); if (k < 1) raf = requestAnimationFrame(step); else from.current = value; };
+    raf = requestAnimationFrame(step);
+    return () => { cancelAnimationFrame(raf); from.current = value; };
+  }, [value]);
+  return <>{format(shown)}</>;
+}
+const FEED_VERB = { steal: 'took', hack: 'hacked', swap: 'swapped with', freeze: 'froze', blocked: 'blocked', double: 'doubled to', triple: 'tripled to', jackpot: 'hit the jackpot' };
+function FeedLine({ e }) {
+  if (!e.kind) return <li className="hb-ev"><span className="hb-ev-t">{e.text}</span></li>;
+  const amt = e.amount ? <b className="hb-amt">{e.amount.toLocaleString('en-US')}</b> : null;
+  let body;
+  if (e.kind === 'steal' || e.kind === 'hack') body = <>{e.kind === 'hack' ? 'hacked' : 'just took'} {amt} credits from <b>{e.b_name}</b></>;
+  else if (e.kind === 'swap') body = <>swapped credits with <b>{e.b_name}</b></>;
+  else if (e.kind === 'freeze') body = <>froze <b>{e.b_name}</b> for 10 seconds</>;
+  else if (e.kind === 'blocked') body = <>blocked an attack from <b>{e.b_name}</b> with a shield</>;
+  else if (e.kind === 'double' || e.kind === 'triple') body = <>got {e.kind.toUpperCase()}: now {amt}</>;
+  else if (e.kind === 'jackpot') body = <>hit the JACKPOT +{amt}</>;
+  else body = <>{FEED_VERB[e.kind] || ''}</>;
+  return (
+    <li className={`hb-ev k-${e.kind}`}>
+      <Character kind={e.a_avatar} size={34} />
+      <span className="hb-ev-t"><b className="hb-who">{e.a_name}</b> {body}</span>
+    </li>
+  );
+}
+function HostBoard({ room, hostToken, reload }) {
+  const [confirm, setConfirm] = useState(false);
+  const end = async () => { try { await api.post(`/game/${room.code}/end`, { host_token: hostToken }); reload(); } catch { /* ignore */ } };
+  // smooth clock between polls
+  const [tick, setTick] = useState(0);
+  const base = useRef({ at: Date.now(), left: room.seconds_left, el: room.elapsed });
+  useEffect(() => { base.current = { at: Date.now(), left: room.seconds_left, el: room.elapsed }; }, [room.seconds_left, room.elapsed]);
+  useEffect(() => { const t = setInterval(() => setTick((x) => x + 1), 1000); return () => clearInterval(t); }, []);
+  const passed = Math.floor((Date.now() - base.current.at) / 1000) + 0 * tick;
+  const time = room.timer ? clock(Math.max(0, (base.current.left ?? 0) - passed)) : clock((base.current.el || 0) + passed);
+  const total = room.players.reduce((s, p) => s + Math.max(0, p.score), 0);
+  const leader = room.players[0];
+  const goalPct = room.goal > 0 && leader ? Math.min(100, (100 * (room.mode === 'team' ? Math.max(...room.teams.map((t) => t.score)) : leader.score)) / room.goal) : null;
+  return (
+    <div className="hb">
+      <header className="hb-top">
+        <div className="hb-brand">Word Arena<small>{room.raid ? 'Cipher Raid' : room.mode === 'team' ? 'Team battle' : 'Classic'}</small></div>
+        <div className={`hb-clock ${room.timer && base.current.left - passed <= 30 ? 'low' : ''}`}>{time}<small>{room.timer ? 'left' : 'playing'}</small></div>
+        <div className="hb-code">CODE: <b>{room.code}</b></div>
+      </header>
+      <div className="hb-body">
+        <ol className="hb-rank" aria-label="Ranking" style={{ '--n': Math.max(6, room.players.length) }}>
+          {room.players.map((p, i) => (
+            <li key={p.id} className={`r${i + 1} ${p.frozen ? 'frozen' : ''}`}>
+              <span className="hb-pos">{i + 1}<sup>{ord(i + 1)}</sup></span>
+              <Character kind={p.avatar} size={52} />
+              <span className="hb-name">{p.name}{p.team && <i className={`arena-tag ${p.team.toLowerCase()}`}>{p.team}</i>}
+                <small>{p.frozen ? 'FROZEN · ' : ''}{p.shield ? 'SHIELD · ' : ''}{p.correct} right</small></span>
+              <strong className="hb-score"><Rolling value={p.score} format={short} /></strong>
+            </li>
+          ))}
+          {!room.players.length && <li className="hb-empty">Waiting for players…</li>}
+        </ol>
+        <aside className="hb-side">
+          {room.mode === 'team' && (
+            <div className="hb-teams">
+              {room.teams.map((t) => <div key={t.name} className={`hb-team ${t.name.toLowerCase()}`}><span>TEAM {t.name.toUpperCase()}</span><b><Rolling value={t.score} format={short} /></b></div>)}
+            </div>
+          )}
+          <ul className="hb-feed" aria-label="Live feed" aria-live="polite">
+            {room.feed?.length ? room.feed.map((e) => <FeedLine key={e.id} e={e} />) : <li className="hb-ev quiet"><span className="hb-ev-t">Steals, swaps, freezes and jackpots show up here.</span></li>}
+          </ul>
+          <div className="hb-total">
+            <small>CREDITS IN PLAY</small>
+            <b><Rolling value={total} /></b>
+            {goalPct != null && <div className="hb-goal"><span>First to {room.goal.toLocaleString('en-US')}</span><i style={{ width: `${goalPct}%` }} /></div>}
+          </div>
+          <button className="hb-end" onClick={() => setConfirm(true)}>End the game</button>
+        </aside>
+      </div>
+      {confirm && (
+        <Modal title="End the game now?" onClose={() => setConfirm(false)} footer={<><button className="btn ghost" onClick={() => setConfirm(false)}>Keep playing</button><button className="btn primary" onClick={() => { setConfirm(false); end(); }}>End and show results</button></>}>
+          <p className="muted" style={{ margin: 0 }}>Everyone sees the podium and their results.</p>
+        </Modal>
+      )}
+    </div>
   );
 }
