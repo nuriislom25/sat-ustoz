@@ -69,9 +69,9 @@ function Editor({ quiz, groups }) {
     if (bad) return toast(`${bad} questions have errors (marked in red)`, 'err');
     setBusy(true);
     try {
-      const body = { ...meta, group_ids: [...groupIds], questions: qs.map(({ _k, ...q }) => q) };
+      const body = { ...meta, group_ids: [...groupIds], questions: qs.map(({ _k, ...q }) => q), folder_id: new URLSearchParams(window.location.search).get('folder') || null };
       if (quiz) await api.put('/quizzes/' + quiz.id, body); else await api.post('/quizzes', body);
-      toast("Quiz saved"); nav('/quizzes');
+      toast("Quiz saved"); { const fo = new URLSearchParams(window.location.search).get('folder'); nav(fo ? `/quizzes?folder=${fo}` : '/quizzes'); }
     } catch (e) { toast(e.message, 'err'); } finally { setBusy(false); }
   };
 

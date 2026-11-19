@@ -154,7 +154,7 @@ function TeacherAssignments() {
 }
 
 /** "Assign to…": one quiz → students and/or a group, optional due date, attempts and pass mark. */
-export function AssignModal({ quizzes, quizId, studentId, onClose, onDone }) {
+export function AssignModal({ quizzes, quizId, quizIds, label, studentId, onClose, onDone }) {
   const toast = useToast();
   const st = useAsync(() => Promise.all([api.get('/students'), api.get('/groups')]), []);
   const [f, setF] = useState({ quiz_id: quizId || '', mode: studentId ? 'students' : 'group', group_id: '', due_at: '', due_time: '23:59', attempts_allowed: '0', close_at_due: false, pass_pct: 70, note: '' });
@@ -165,17 +165,17 @@ export function AssignModal({ quizzes, quizId, studentId, onClose, onDone }) {
   const save = async () => {
     setBusy(true);
     try {
-      await api.post('/assignments', { quiz_id: f.quiz_id, group_id: f.mode === 'group' ? f.group_id : null, user_ids: f.mode === 'students' ? [...picked] : [],
+      await api.post('/assignments', { quiz_id: f.quiz_id, quiz_ids: quizIds, label, group_id: f.mode === 'group' ? f.group_id : null, user_ids: f.mode === 'students' ? [...picked] : [],
         due_at: toDue(f), close_at_due: f.close_at_due, attempts_allowed: f.attempts_allowed, pass_pct: f.pass_pct, note: f.note });
-      toast('Assigned'); onDone();
+      toast(quizIds ? `${quizIds.length} quizzes assigned` : 'Assigned'); onDone();
     } catch (e) { toast(e.message, 'bad'); } finally { setBusy(false); }
   };
-  const ready = f.quiz_id && (f.mode === 'group' ? f.group_id : picked.size);
+  const ready = (quizIds?.length || f.quiz_id) && (f.mode === 'group' ? f.group_id : picked.size);
   return (
-    <Modal wide title="Assign a quiz" onClose={onClose}
+    <Modal wide title={quizIds ? `Assign “${label}” · ${quizIds.length} ${quizIds.length === 1 ? 'quiz' : 'quizzes'}` : 'Assign a quiz'} onClose={onClose}
       footer={<><button className="btn ghost" onClick={onClose}>Cancel</button><button className="btn primary" disabled={!ready || busy} onClick={save}>Assign</button></>}>
       <Gate state={st}>{([students, groups]) => (
-        <AssignForm {...{ f, set, setF, quizzes, students, groups, picked, setPicked, q, setQ, quizId }} />
+        <AssignForm {...{ f, set, setF, quizzes, students, groups: groups.filter((g) => !g.archived), picked, setPicked, q, setQ, quizId: quizId || (quizIds ? 'many' : null) }} />
       )}</Gate>
     </Modal>
   );

@@ -3901,3 +3901,55 @@ body:has(.arena.is-raid) { background: #020A06; }
   .grp-pick-row { flex-wrap: wrap; } .grp-pick-row > .row { width: 100%; justify-content: flex-start !important; padding-left: 70px; }
   .modal .fin-search.grow { flex-basis: 100%; }
 }
+
+/* ======================= Quiz folders ======================= */
+.qf { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 18px; align-items: start; }
+.qf-tree { position: sticky; top: 12px; display: grid; gap: 2px; padding: 10px; border-radius: 20px; background: var(--surface); border: 1px solid var(--line); max-height: calc(100vh - 40px); overflow-y: auto; }
+.qf-list { list-style: none; margin: 0; padding: 0 0 0 calc(var(--d) * 0px + 12px); display: grid; gap: 2px; }
+.qf-tree > .qf-list { padding-left: 0; }
+.qf-node { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; padding: 6px 10px; border: 1.5px solid transparent; border-radius: 11px; background: none; color: var(--ink); font: 600 .88rem var(--font); text-align: left; cursor: pointer; }
+.qf-node span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .qf-node small { color: var(--muted); font-weight: 700; font-size: .74rem; }
+.qf-node:hover { background: var(--surface-2); } .qf-node.on { background: var(--primary-soft); color: var(--primary); }
+.qf-node.drop, .qf-folder.drop, .qf-crumbs button.drop { border-color: var(--primary); background: var(--primary-soft); border-style: dashed; }
+.qf-ficon { color: var(--fc, var(--muted)); flex: none; }
+.qf-add { display: flex; align-items: center; gap: 6px; margin-top: 6px; padding: 8px 10px; border: 1.5px dashed var(--line); border-radius: 11px; background: none; color: var(--muted); font: 700 .84rem var(--font); cursor: pointer; } .qf-add:hover { color: var(--primary); border-color: var(--primary); }
+.qf-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 12px; }
+.qf-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; }
+.qf-crumbs button { border: 1.5px solid transparent; background: none; padding: 4px 8px; border-radius: 9px; font: 700 .9rem var(--font); color: var(--muted); cursor: pointer; } .qf-crumbs button:hover { color: var(--ink); background: var(--surface-2); }
+.qf-crumbs > span:last-child button { color: var(--ink); }
+.qf-sep { color: var(--muted); transform: rotate(-90deg); }
+.qf-search { min-width: 220px; } .qf-bar select { height: 42px; border-radius: 12px; }
+.qf-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 16px; margin-bottom: 12px; border-left: 5px solid var(--fc); }
+.qf-head h2 { margin: 0; font-size: 1.2rem; } .qf-head-acts { gap: 6px; }
+.qf-fico { flex: none; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 13px; background: color-mix(in srgb, var(--fc) 16%, var(--surface)); color: var(--fc); }
+.qf-folders { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.qf-folder { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 16px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer; transition: transform .15s, box-shadow .15s, border-color .15s; }
+.qf-folder:hover { transform: translateY(-1px); box-shadow: var(--shadow); border-color: color-mix(in srgb, var(--fc) 45%, var(--line)); }
+.qf-folder b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .qf-folder small { display: block; color: var(--muted); font-size: .76rem; font-weight: 600; }
+.qf-prog { display: block; height: 5px; margin-top: 6px; border-radius: 9px; background: var(--track); overflow: hidden; } .qf-prog i { display: block; height: 100%; background: var(--fc); border-radius: 9px; }
+.qf-quiz { position: relative; } .qf-quiz[draggable='true'] { cursor: grab; } .qf-quiz.on { box-shadow: inset 0 0 0 2px var(--primary); }
+.qf-quiz.drop-before::before { content: ''; position: absolute; left: 10px; right: 10px; top: -7px; height: 3px; border-radius: 3px; background: var(--primary); }
+.qf-check { display: grid; place-items: center; } .qf-check input { width: 18px; height: 18px; }
+.qf-path { display: inline-flex; align-items: center; gap: 4px; }
+.qf-hint { display: block; text-align: center; margin-top: 4px; }
+.qf-move { display: grid; gap: 4px; max-height: 55vh; overflow-y: auto; }
+.qf-move-row { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); font: 600 .92rem var(--font); text-align: left; cursor: pointer; }
+.qf-move-row:hover:not(:disabled) { border-color: var(--primary); background: var(--primary-soft); } .qf-move-row:disabled { opacity: .4; cursor: not-allowed; }
+.sq-crumbs { margin: 4px 0 12px; }
+@media (max-width: 1000px) {
+  .qf { grid-template-columns: 1fr; }
+  .qf-tree { display: none; }
+}
+@media (max-width: 640px) {
+  .qf-search { min-width: 0; flex: 1; } .qf-bar > .row { width: 100%; }
+  .qf-folders { grid-template-columns: 1fr 1fr; gap: 8px; } .qf-folder { padding: 10px; gap: 8px; } .qf-folder .qf-fico { width: 34px; height: 34px; }
+  .qf-head-acts { width: 100%; } .qf-head-acts .btn { flex: 1 1 auto; justify-content: center; }
+  .qf-quiz .qf-check { position: absolute; top: 14px; right: 14px; }
+}
+.quiz-row.qf-quiz { grid-template-columns: auto auto minmax(0, 1fr) auto; gap: 14px; }
+@media (max-width: 640px) { .quiz-row.qf-quiz { grid-template-columns: auto minmax(0, 1fr); } .quiz-row.qf-quiz .qf-acts { grid-column: 1 / -1; } .qf-quiz h3 { padding-right: 26px; } }
+/* folder quiz rows: actions sit under the details so the title keeps its width */
+.quiz-row.qf-quiz { grid-template-columns: auto auto minmax(0, 1fr); row-gap: 10px; }
+.quiz-row.qf-quiz .qf-acts { grid-column: 3; justify-content: flex-start; gap: 6px; }
+@media (max-width: 640px) { .quiz-row.qf-quiz { grid-template-columns: auto minmax(0, 1fr); } .quiz-row.qf-quiz .qf-acts { grid-column: 1 / -1; } }
+.qf-head > .grow { flex: 1 1 220px; } .qf-head h2 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

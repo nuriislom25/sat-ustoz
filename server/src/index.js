@@ -33,6 +33,7 @@ import { registerQuality } from './quality.js';
 import { migrateAssignments, registerAssignments, assignedQuizOpen, assignmentBlock } from './assignments.js';
 import { migrateMath, syncMath, registerMath } from './math.js';
 import { migrateGroups, backfillMembers, registerGroups, setStudentGroups } from './groups.js';
+import { migrateFolders, registerFolders } from './folders.js';
 import { migrateReserved, registerReserved, scanReserved, scanSoon } from './reserved.js';
 import { registerProgress } from './progress.js';
 import { migrateMistakes, registerMistakes } from './mistakes.js';
@@ -104,6 +105,7 @@ const schemaOk = schemaDone?.value === schema && await db.one(`SELECT (to_regcla
     AND to_regclass('public.live_bookings') IS NOT NULL AND to_regclass('public.tg_logins') IS NOT NULL
     AND to_regclass('public.math_questions') IS NOT NULL AND to_regclass('public.assignment_grants') IS NOT NULL
     AND to_regclass('public.group_members') IS NOT NULL AND to_regclass('public.group_attendance') IS NOT NULL
+    AND to_regclass('public.quiz_folders') IS NOT NULL
     AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'admin_perms')) AS ok`).then((r) => !!r?.ok).catch(() => false);
 if (!schemaOk) {
   await migrate();
@@ -146,6 +148,7 @@ if (!schemaOk) {
   await migrateGame();
   await migrateMath();
   await migrateGroups();
+  await migrateFolders();
   // after a database is copied, the id counters can stay behind the rows (new inserts then fail with "duplicate key"):
   // move every id counter past the highest id in its table
   try {
@@ -556,7 +559,7 @@ app.get('/api/health', requireMaster, h(async (req, res) => {
   const add = (name, ok, detail, fix) => checks.push({ name, ok, detail, fix: fix || null });
   const t = Date.now(); await db.one('SELECT 1 AS x'); const ping = Date.now() - t;
   add('Database', true, `Connected (${DB_KIND === 'postgres' ? dbHost.split('.').slice(1, 3).join('.') || 'postgres' : 'local'}), ${ping} ms`);
-  const need = ['users', 'settings', 'qbank_questions', 'qbank_answers', 'roadmap_items', 'balance_ledger', 'tg_requests', 'full_mock_attempts', 'live_bookings', 'site_visits', 'question_approvals', 'tg_logins', 'check_edits', 'usage_answers', 'math_questions', 'assignment_grants', 'group_members', 'group_attendance'];
+  const need = ['users', 'settings', 'qbank_questions', 'qbank_answers', 'roadmap_items', 'balance_ledger', 'tg_requests', 'full_mock_attempts', 'live_bookings', 'site_visits', 'question_approvals', 'tg_logins', 'check_edits', 'usage_answers', 'math_questions', 'assignment_grants', 'group_members', 'group_attendance', 'quiz_folders'];
   const have = new Set((await db.all("SELECT table_name AS t FROM information_schema.tables WHERE table_schema = 'public'")).map((r) => r.t));
   const missing = need.filter((x) => !have.has(x));
   add('Tables', !missing.length, missing.length ? `Missing: ${missing.join(', ')}` : `${have.size} tables, all present`, missing.length ? 'migrate' : null);
@@ -852,10 +855,10 @@ async function canAccess(user, quizId) {
 }
 
 async function quizList(user) {
-  const base = `SELECT q.id, q.title, q.section, q.kind, q.is_public, q.duration_min, q.created_at,
+  const base = `SELECT q.id, q.title, q.section, q.kind, q.is_public, q.duration_min, q.created_at, q.folder_id, q.position,
     (SELECT COUNT(*) FROM questions x WHERE x.quiz_id = q.id) AS questions FROM quizzes q`;
   if (user.role === 'master') {
-    const rows = await db.all(base + ' ORDER BY q.created_at DESC, q.id DESC');
+    const rows = await db.all(base + ' ORDER BY q.position, q.created_at DESC, q.id DESC');
     return Promise.all(rows.map(async (q) => ({
       ...q,
       groups: await db.all('SELECT g.id, g.name FROM quiz_groups qg JOIN groups g ON g.id = qg.group_id WHERE qg.quiz_id = ?', [q.id]),
@@ -863,7 +866,7 @@ async function quizList(user) {
       roadmap: (await db.one('SELECT COUNT(*) AS c FROM roadmap_items WHERE quiz_id = ?', [q.id])).c > 0,
     })));
   }
-  const rows = await db.all(base + ` WHERE ${VISIBLE} ORDER BY (q.kind = 'diagnostic') DESC, q.created_at DESC, q.id DESC`, [user.id]);
+  const rows = await db.all(base + ` WHERE ${VISIBLE} ORDER BY (q.kind = 'diagnostic') DESC, q.position, q.created_at DESC, q.id DESC`, [user.id]);
   return Promise.all(rows.map(async (q) => {
     const fin = await db.all('SELECT id, score, total, finished_at FROM attempts WHERE user_id = ? AND quiz_id = ? AND finished_at IS NOT NULL ORDER BY finished_at DESC', [user.id, q.id]);
     const open = await db.one('SELECT id FROM attempts WHERE user_id = ? AND quiz_id = ? AND finished_at IS NULL', [user.id, q.id]);
@@ -872,6 +875,7 @@ async function quizList(user) {
   }));
 }
 app.get('/api/quizzes', h(async (req, res) => res.json(await quizList(req.user))));
+registerFolders(app, { h, bad, requireMaster });
 
 async function saveQuiz(req, existingId) {
   const { title, section, kind, is_public, duration_min, group_ids, questions } = req.body || {};
@@ -884,7 +888,12 @@ async function saveQuiz(req, existingId) {
     let id = existingId;
     const shC = !!req.body?.shuffle_choices; const shQ = !!req.body?.shuffle_questions;
     if (id) await t.run('UPDATE quizzes SET title = ?, section = ?, kind = ?, is_public = ?, duration_min = ?, shuffle_choices = ?, shuffle_questions = ? WHERE id = ?', [title.trim(), sec, knd, !!is_public, dur, shC, shQ, id]);
-    else id = (await t.run('INSERT INTO quizzes (title, section, kind, is_public, duration_min, created_by, shuffle_choices, shuffle_questions) VALUES (?,?,?,?,?,?,?,?) RETURNING id', [title.trim(), sec, knd, !!is_public, dur, req.user.id, shC, shQ])).id;
+    else {
+      // a new quiz made inside a folder lands in that folder
+      const fid = Number(req.body?.folder_id) || null;
+      const folder = fid ? await t.one('SELECT id FROM quiz_folders WHERE id = ?', [fid]) : null;
+      id = (await t.run('INSERT INTO quizzes (title, section, kind, is_public, duration_min, created_by, shuffle_choices, shuffle_questions, folder_id) VALUES (?,?,?,?,?,?,?,?,?) RETURNING id', [title.trim(), sec, knd, !!is_public, dur, req.user.id, shC, shQ, folder?.id ?? null])).id;
+    }
 
     const keep = new Set();
     for (let i = 0; i < questions.length; i++) {

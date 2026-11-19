@@ -163,10 +163,12 @@ export function registerAssignments(app, { h, bad, requireMaster, requireStudent
     res.json(out);
   }));
 
+  // one quiz (quiz_id) or several at once (quiz_ids, e.g. a whole folder): one task per quiz, one message per student
   app.post('/api/assignments', requireMaster, h(async (req, res) => {
     const b = req.body || {};
-    const quiz = await db.one('SELECT id, title FROM quizzes WHERE id = ?', [Number(b.quiz_id)]);
-    if (!quiz) return bad(res, 'Choose a quiz');
+    const qids = [...new Set((Array.isArray(b.quiz_ids) ? b.quiz_ids : [b.quiz_id]).map(Number).filter(Boolean))].slice(0, 100);
+    const quizzes = qids.length ? await db.all('SELECT id, title FROM quizzes WHERE id = ANY(?::int[]) ORDER BY array_position(?::int[], id)', [qids, qids]) : [];
+    if (!quizzes.length) return bad(res, 'Choose a quiz');
     const userIds = (Array.isArray(b.user_ids) ? b.user_ids : []).map(Number).filter(Boolean).slice(0, 500);
     const groupId = b.group_id ? Number(b.group_id) : null;
     if (!userIds.length && !groupId) return bad(res, 'Choose students or a group');
@@ -177,13 +179,18 @@ export function registerAssignments(app, { h, bad, requireMaster, requireStudent
     const closeAt = !!(due && b.close_at_due);
     const made = [];
     await db.tx(async (t) => {
-      if (groupId) made.push((await t.one('INSERT INTO assignments (quiz_id, group_id, due_at, attempts_allowed, pass_pct, note, close_at_due, created_by) VALUES (?,?,?,?,?,?,?,?) RETURNING id', [quiz.id, groupId, due, allowed, pass, note, closeAt, req.user.id])).id);
-      for (const u of userIds) made.push((await t.one('INSERT INTO assignments (quiz_id, user_id, due_at, attempts_allowed, pass_pct, note, close_at_due, created_by) VALUES (?,?,?,?,?,?,?,?) RETURNING id', [quiz.id, u, due, allowed, pass, note, closeAt, req.user.id])).id);
+      for (const quiz of quizzes) {
+        if (groupId) made.push((await t.one('INSERT INTO assignments (quiz_id, group_id, due_at, attempts_allowed, pass_pct, note, close_at_due, created_by) VALUES (?,?,?,?,?,?,?,?) RETURNING id', [quiz.id, groupId, due, allowed, pass, note, closeAt, req.user.id])).id);
+        for (const u of userIds) made.push((await t.one('INSERT INTO assignments (quiz_id, user_id, due_at, attempts_allowed, pass_pct, note, close_at_due, created_by) VALUES (?,?,?,?,?,?,?,?) RETURNING id', [quiz.id, u, due, allowed, pass, note, closeAt, req.user.id])).id);
+      }
     });
     // Telegram for students who linked the bot
     const targets = groupId ? (await db.all('SELECT user_id AS id FROM group_members WHERE group_id = ? AND left_at IS NULL', [groupId])).map((r) => r.id) : userIds;
     const when = due ? ` · due ${new Date(due).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Asia/Tashkent' })}` : '';
-    for (const id of targets.slice(0, 200)) notifyUser(id, `📝 New assignment: <b>${quiz.title.replace(/[<>&]/g, '')}</b>${when}\nOpen ustozsat.uz → Assignments`);
+    const esc = (x) => String(x).replace(/[<>&]/g, '');
+    const what = quizzes.length === 1 ? `📝 New assignment: <b>${esc(quizzes[0].title)}</b>`
+      : `📝 ${quizzes.length} new assignments${b.label ? ` · <b>${esc(b.label).slice(0, 80)}</b>` : ''}:\n${quizzes.slice(0, 8).map((q) => `• ${esc(q.title)}`).join('\n')}${quizzes.length > 8 ? '\n…' : ''}`;
+    for (const id of targets.slice(0, 200)) notifyUser(id, `${what}${when}\nOpen ustozsat.uz → Assignments`);
     res.json({ ids: made });
   }));
 
