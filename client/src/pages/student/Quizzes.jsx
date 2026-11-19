@@ -7,6 +7,7 @@ import { useAuth } from '../../context.jsx';
 import { Card, Empty, Gate, PageHeader, Segmented, pctTone, useAsync } from '../../components/ui.jsx';
 import { IconArrow, IconCheck, IconChevron, IconClock, IconCrown, IconFolder, IconLock, IconQuiz } from '../../components/icons.jsx';
 import { UsageChip } from '../../usage.jsx';
+import { subjectOf } from '../../subject.jsx';
 
 export function PaywallBanner() {
   return (
@@ -18,20 +19,34 @@ export function PaywallBanner() {
   );
 }
 
+function MathPaywall() {
+  return (
+    <div className="banner">
+      <span className="item-ic"><IconCrown /></span>
+      <div className="grow"><b>Math quizzes come with a Math plan</b><small>The Math plan opens every video lesson, quiz and unlimited practice.</small></div>
+      <Link className="btn primary sm" to="/subscribe?subject=math">Buy Math <IconArrow width={16} height={16} /></Link>
+    </div>
+  );
+}
+
 export default function Quizzes() {
   const st = useAsync(() => Promise.all([api.get('/quizzes'), api.get('/quiz-folders').catch(() => [])]), []);
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
   const cur = Number(params.get('folder')) || null;
   const open = (id) => { const n = new URLSearchParams(params); if (id) n.set('folder', id); else n.delete('folder'); setParams(n); };
-  const locked = (q) => q.kind !== 'diagnostic' && !user.access?.can_practice;
+  const math = subjectOf(user) === 'math';
+  const canPractice = math ? user.access?.math?.can_practice : user.access?.can_practice;
+  const locked = (q) => q.kind !== 'diagnostic' && !canPractice;
   const [tab, setTab] = useState('all');
   return (
     <div className="page">
-      <PageHeader title="Quizzes" sub="A quick random SAT module, plus quizzes from your teacher."><UsageChip /></PageHeader>
-      {user.role === 'student' && <TakeQuizCard />}
-      {!user.access?.can_practice && <PaywallBanner />}
-      <Gate state={st}>{([list, allFolders]) => {
+      <PageHeader title={math ? 'Math quizzes' : 'Quizzes'} sub={math ? 'SAT Math quizzes from your teacher.' : 'A quick random SAT module, plus quizzes from your teacher.'}>{!math && <UsageChip />}</PageHeader>
+      {user.role === 'student' && !math && <TakeQuizCard />}
+      {!canPractice && (math ? <MathPaywall /> : <PaywallBanner />)}
+      <Gate state={st}>{([all, allFolders]) => {
+        const list = all.filter((q) => (q.section === 'math') === math);
+        if (math && !list.length) return <Empty title="No Math quizzes yet" text="When your teacher opens a Math quiz to you, it shows up here. Meanwhile, practise by topic." />;
         // folders: only the ones that hold a quiz open to this student; with a status tab picked, a flat list
         const T = folderTools(allFolders);
         const has = (fid) => list.some((q) => q.folder_id && T.under(fid).includes(q.folder_id));

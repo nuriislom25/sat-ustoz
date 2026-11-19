@@ -150,37 +150,46 @@ function AddStudents({ groups, defaultGroup, onClose, onDone }) {
 }
 
 /** Teacher activates / extends / cancels a subscription (the Telegram bot will write to the same place). */
-export function SubscriptionModal({ student, onClose, onDone }) {
+export function SubscriptionModal({ student, onClose, onDone, subject: subj0 = 'english' }) {
   const toast = useToast();
+  const [subject, setSubject] = useState(subj0);
+  const math = subject === 'math';
+  const on = math ? !!student.math_sub_active : !!student.sub_active;
+  const until = math ? student.math_sub_until : student.sub_until;
+  const curPlan = math ? student.math_sub_plan : student.sub_plan;
   const [days, setDays] = useState(30);
   const plans = useAsync(() => api.get('/plans'), []);
   const [plan, setPlan] = useState(['t1', 't2', 't3', 't4'].includes(student.sub_plan) && student.sub_active ? student.sub_plan : 't2');
+  const switchTo = (v) => { setSubject(v); const p = v === 'math' ? student.math_sub_plan : student.sub_plan; const a = v === 'math' ? student.math_sub_active : student.sub_active; setPlan(a && ['t1', 't2', 't3', ...(v === 'math' ? [] : ['t4'])].includes(p) ? p : 't2'); };
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const grant = async () => {
     setBusy(true);
-    try { await api.post(`/students/${student.id}/subscription`, { days, plan, amount: Number(amount) || 0, note }); toast('Subscription activated'); onDone(); }
+    try { await api.post(`/students/${student.id}/subscription`, { days, plan, subject, amount: Number(amount) || 0, note }); toast(math ? 'Math plan activated' : 'Subscription activated'); onDone(); }
     catch (e) { toast(e.message, 'bad'); } finally { setBusy(false); }
   };
   const cancel = async () => {
     setBusy(true);
-    try { await api.del(`/students/${student.id}/subscription`); toast('Subscription cancelled'); onDone(); }
+    try { await api.del(`/students/${student.id}/subscription${math ? '?subject=math' : ''}`); toast(math ? 'Math plan cancelled' : 'Subscription cancelled'); onDone(); }
     catch (e) { toast(e.message, 'bad'); } finally { setBusy(false); }
   };
+  const tiers = (plans.data?.tiers || []).filter((t) => !math || !t.live);
+  const price = (t) => (math ? t?.math_price : t?.price) || 0;
   return (
     <Modal title={`Subscription · ${student.name}`} onClose={onClose}
       footer={<>
-        {student.sub_active && <button className="btn danger-ghost" disabled={busy} onClick={cancel}>Cancel subscription</button>}
+        {on && <button className="btn danger-ghost" disabled={busy} onClick={cancel}>{math ? 'Cancel Math plan' : 'Cancel subscription'}</button>}
         <span className="grow" />
         <button className="btn ghost" onClick={onClose}>Close</button>
-        <button className="btn primary" disabled={busy} onClick={grant}>{student.sub_active ? `Extend by ${days} days` : `Activate ${days} days`}</button>
+        <button className="btn primary" disabled={busy} onClick={grant}>{on ? `Extend by ${days} days` : `Activate ${days} days`}</button>
       </>}>
-      <p className="muted">{student.sub_active ? `Active until ${fmtDate(student.sub_until)}. Extending adds days to the current end date.` : 'No active subscription. Activate access after the student has paid.'}</p>
-      {plans.data && <Segmented value={plan} onChange={setPlan} options={plans.data.tiers.map((t, i) => ({ value: t.id, label: `${i + 1} · ${t.name}` }))} />}
+      <Segmented value={subject} onChange={switchTo} options={[{ value: 'english', label: 'English' }, { value: 'math', label: 'Math' }]} />
+      <p className="muted">{on ? `${math ? 'Math' : 'English'} plan active until ${fmtDate(until)}${curPlan ? '' : ''}. Extending adds days to the current end date.` : `No active ${math ? 'Math' : 'English'} plan. Activate access after the student has paid.`}</p>
+      {plans.data && <Segmented value={plan} onChange={setPlan} options={tiers.map((t, i) => ({ value: t.id, label: `${i + 1} · ${t.name}` }))} />}
       <Segmented value={days} onChange={setDays} options={[{ value: 7, label: '7 days' }, { value: 30, label: '1 month' }, { value: 90, label: '3 months' }, { value: 365, label: '1 year' }]} />
       <div className="form-grid">
-        <Field label="Amount paid" hint="optional"><input inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))} placeholder={String((plans.data?.tiers.find((t) => t.id === plan)?.price || 0) * Math.max(1, Math.round(days / 30)))} /></Field>
+        <Field label="Amount paid" hint="optional"><input inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))} placeholder={String(price(plans.data?.tiers.find((t) => t.id === plan)) * Math.max(1, Math.round(days / 30)))} /></Field>
         <Field label="Note" hint="optional"><input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Paid by card, Click…" /></Field>
       </div>
     </Modal>

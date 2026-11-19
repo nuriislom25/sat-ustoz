@@ -9,6 +9,8 @@ import { Spinner } from './components/ui.jsx';
 import Layout from './components/Layout.jsx';
 import Dashboard from './pages/student/Dashboard.jsx';
 import { LimitWall } from './usage.jsx';
+import { ComingSoon, subjectOf, ToMath } from './subject.jsx';
+import { IconDoc, IconTarget } from './components/icons.jsx';
 
 // pages load on demand: a smaller first download on mobile data (each page is its own file).
 // After a new deploy an open tab may ask for an old file name: reload once to get the new version.
@@ -61,6 +63,12 @@ const QbankAdmin = page(() => import('./pages/master/QbankAdmin.jsx'));
 const MathHome = page(() => import('./pages/math/MathHome.jsx'));
 const MathLesson = page(() => import('./pages/math/MathLesson.jsx'));
 const MathPractice = page(() => import('./pages/math/MathPractice.jsx'));
+const MathRoadmap = page(() => import('./pages/math/MathRoadmap.jsx'));
+const MathRoadLesson = page(() => import('./pages/math/MathRoadmap.jsx').then((m) => ({ default: m.MathRoadLesson })));
+const MathDash = page(() => import('./pages/math/MathDash.jsx'));
+const MathMistakes = page(() => import('./pages/math/MathDash.jsx').then((m) => ({ default: m.MathMistakes })));
+const MathResults = page(() => import('./pages/math/MathDash.jsx').then((m) => ({ default: m.MathResults })));
+const MathLeaderboard = page(() => import('./pages/math/MathDash.jsx').then((m) => ({ default: m.MathLeaderboard })));
 const LevelCheck = page(() => import('./pages/lesson/LevelCheck.jsx'));
 const LevelCheckResult = page(() => import('./pages/lesson/LevelCheck.jsx').then((m) => ({ default: m.LevelCheckResult })));
 const Practice = page(() => import('./pages/public/Practice.jsx'));
@@ -112,6 +120,9 @@ export default function App() {
     </Routes></Suspense>
   );
   // the placement test is optional: new students see an invitation on the dashboard, nothing is blocked
+  // students work in one subject at a time (the switch next to the logo); Math mode swaps the pages below
+  const math = user.role === 'student' && subjectOf(user) === 'math';
+  const home = <Navigate to="/" replace />;
 
   return (
     <Suspense fallback={<Wait />}><OfflineBar /><UpdateBar />{user.role === 'student' && <><ActivityTracker /><LimitWall /></>}
@@ -135,14 +146,15 @@ export default function App() {
       <Route path="/ru" element={<PublicLayout />}><Route index element={<LocalPage />} /></Route>
       <Route path="/play/:code" element={<Play />} />
       <Route element={<Layout />}>
-        <Route path="practice" element={<Practice />} />
-        <Route path="vocab" element={<VocabHome />} />
-        <Route path="vocab/deck/:deckId" element={<VocabHome />} />
-        <Route path="vocab/unit/:id" element={<VocabUnit />} />
-        <Route path="vocab/review" element={<VocabReview />} />
-        <Route path="game" element={<GameHub />} />
-        <Route path="math" element={<MathHome />} />
-        {user.role === 'student' && <Route path="math/learn/:id" element={<MathLesson />} />}
+        <Route path="practice" element={math ? <MathHome /> : <Practice />} />
+        <Route path="vocab" element={math ? home : <VocabHome />} />
+        <Route path="vocab/deck/:deckId" element={math ? home : <VocabHome />} />
+        <Route path="vocab/unit/:id" element={math ? home : <VocabUnit />} />
+        <Route path="vocab/review" element={math ? home : <VocabReview />} />
+        <Route path="game" element={math ? home : <GameHub />} />
+        <Route path="math" element={user.role === 'master' ? <MathHome /> : math ? <Navigate to="/practice" replace /> : <ToMath />} />
+        {user.role === 'student' && <Route path="math/learn/:id" element={math ? <MathLesson /> : <ToMath />} />}
+        {math && <Route path="roadmap/lesson/:id" element={<MathRoadLesson />} />}
         {user.role === 'student' && <Route path="my-group" element={<MyGroups />} />}
         {user.role === 'master' ? (
           <>
@@ -171,18 +183,18 @@ export default function App() {
           </>
         ) : (
           <>
-            <Route index element={<Dashboard />} />
-            <Route path="roadmap" element={<Roadmap />} />
+            <Route index element={math ? <MathDash /> : <Dashboard />} />
+            <Route path="roadmap" element={math ? <MathRoadmap /> : <Roadmap />} />
             <Route path="quizzes" element={<Quizzes />} />
             <Route path="mock/:id" element={<MockResult />} />
-            <Route path="analytics" element={<Analytics />} />
-            <Route path="leaderboard" element={<Leaderboard />} />
+            <Route path="analytics" element={math ? <MathResults /> : <Analytics />} />
+            <Route path="leaderboard" element={math ? <MathLeaderboard /> : <Leaderboard />} />
             <Route path="assignments" element={<Assignments />} />
-            <Route path="full-mocks" element={<FullMocks />} />
+            <Route path="full-mocks" element={math ? <ComingSoon icon={IconDoc} title="Full Math mocks are coming" text="Full-length SAT Math modules with the Desmos calculator are being prepared. Until then, practise by topic and follow the Math roadmap." /> : <FullMocks />} />
             <Route path="consultations" element={<Consultations />} />
             <Route path="full-mock/result/:aid" element={<FullMockResult />} />
-            <Route path="saved" element={<Saved />} />
-            <Route path="mistakes" element={<Mistakes />} />
+            <Route path="saved" element={math ? home : <Saved />} />
+            <Route path="mistakes" element={math ? <MathMistakes /> : <Mistakes />} />
             <Route path="portfolio" element={<Portfolio />} />
             <Route path="subscribe" element={<Subscribe />} />
             <Route path="welcome" element={<Welcome />} />
@@ -193,9 +205,9 @@ export default function App() {
         <Route path="placement/result/:id" element={<PlacementResult />} />
         <Route path="lesson/:id" element={<Lesson />} />
         <Route path="lesson-check/:id" element={<LevelCheckResult />} />
-        <Route path="live" element={<Live />} />
+        <Route path="live" element={math ? home : <Live />} />
         <Route path="profile" element={<Profile />} />
-        <Route path="question-bank" element={<QuestionBank />} />
+        <Route path="question-bank" element={math ? <ComingSoon icon={IconTarget} title="The Math Question Bank is coming" text="Hundreds of official-style SAT Math questions by domain and level are being added. Until then, practise every topic from Practice." /> : <QuestionBank />} />
         <Route path="login" element={<Navigate to="/" replace />} />
         <Route path="signup" element={<Navigate to="/" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -22,7 +22,8 @@ export default function Dashboard() {
   return (
     <div className="page">
       {(needExam || pickExam) && <ExamPicker value={user.exam_date} required={needExam} onClose={() => setPickExam(false)} />}
-      <Gate state={st}>{([a, quizzes, pl, rep, lb, asg, goal, math]) => {
+      <Gate state={st}>{([a, allQuizzes, pl, rep, lb, asg, goal, math]) => {
+        const quizzes = allQuizzes.filter((q) => q.section !== 'math');
         const next = quizzes.find((q) => q.status === 'in_progress') || quizzes.find((q) => q.status === 'new') || quizzes[0];
         const all = combine(a, rep);
         const points = all.trend.map((t, i) => ({ value: t.est, label: `${t.title} (${fmtDate(t.date)})`, short: i + 1 }));

@@ -32,6 +32,7 @@ import { migrateCalib } from './calibrate.js';
 import { registerQuality } from './quality.js';
 import { migrateAssignments, registerAssignments, assignedQuizOpen, assignmentBlock } from './assignments.js';
 import { migrateMath, syncMath, registerMath } from './math.js';
+import { migrateSubjects, registerSubjects } from './mathroad.js';
 import { migrateGroups, backfillMembers, registerGroups, setStudentGroups } from './groups.js';
 import { migrateFolders, registerFolders } from './folders.js';
 import { migrateReserved, registerReserved, scanReserved, scanSoon } from './reserved.js';
@@ -39,7 +40,7 @@ import { registerProgress } from './progress.js';
 import { migrateMistakes, registerMistakes } from './mistakes.js';
 import { migrateFocus, registerFocus, penaltyOf, focusSummary } from './focus.js';
 import { migratePictures, registerPictures } from './pictures.js';
-import { readTiers, registerTiers, migrateTiers, tierOf, cleanTiers, usedToday, usageOf, meterAnswers, limitError, tooManyFails, noteFail, clearFails, moveBalance } from './tiers.js';
+import { readTiers, registerTiers, migrateTiers, tierOf, cleanTiers, usedToday, usageOf, meterAnswers, limitError, tooManyFails, noteFail, clearFails, moveBalance, asSubject, subjectOf, bundlePct } from './tiers.js';
 import { migrateVocab, registerVocab, syncVocab } from './vocab.js';
 import { migrateGame, registerGame } from './game.js';
 import { migrateSite, seedSite, registerSitePublic, registerSiteAdmin } from './site.js';
@@ -105,7 +106,8 @@ const schemaOk = schemaDone?.value === schema && await db.one(`SELECT (to_regcla
     AND to_regclass('public.live_bookings') IS NOT NULL AND to_regclass('public.tg_logins') IS NOT NULL
     AND to_regclass('public.math_questions') IS NOT NULL AND to_regclass('public.assignment_grants') IS NOT NULL
     AND to_regclass('public.group_members') IS NOT NULL AND to_regclass('public.group_attendance') IS NOT NULL
-    AND to_regclass('public.quiz_folders') IS NOT NULL
+    AND to_regclass('public.quiz_folders') IS NOT NULL AND to_regclass('public.math_lesson_progress') IS NOT NULL
+    AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'math_sub_until')
     AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'admin_perms')) AS ok`).then((r) => !!r?.ok).catch(() => false);
 if (!schemaOk) {
   await migrate();
@@ -149,6 +151,7 @@ if (!schemaOk) {
   await migrateMath();
   await migrateGroups();
   await migrateFolders();
+  await migrateSubjects();
   // after a database is copied, the id counters can stay behind the rows (new inserts then fail with "duplicate key"):
   // move every id counter past the highest id in its table
   try {
@@ -252,12 +255,14 @@ const cleanQ = (q) => ({
   topic: String(q.topic || '').trim() || 'General',
 });
 
-/** What a student may do right now. Every new student takes the placement test first. */
+/** What a student may do right now. Every new student takes the placement test first. `math` = the same for Math. */
 async function accessFor(user, settings) {
   settings ||= await getSettings();
   const required = settings.require_subscription === 'true';
   const tier = tierOf(user, settings);
   const open = user.role === 'master' || !required;
+  const mt = tierOf(user, settings, 'math');
+  const mathActive = subActive(asSubject(user, 'math'));
   return {
     subscription_required: required,
     sub_active: subActive(user),
@@ -269,12 +274,20 @@ async function accessFor(user, settings) {
     can_practice: open || subActive(user),
     needs_placement: user.role === 'student' && !user.placement_at,
     needs_diagnostic: user.role === 'student' && !user.placement_at, // kept for older clients
+    math: {
+      sub_active: mathActive, sub_until: user.math_sub_until || null, plan: mathActive ? user.math_sub_plan : '',
+      tier: { id: mt.id, name: mt.name, q_day: open ? 0 : mt.q_day, fm_week: mt.fm_week },
+      roadmap: open || mt.roadmap, video: open || mt.video, can_practice: open || mathActive,
+      free_lessons: open || mathActive ? null : Number(mt.free_lessons ?? 2),
+    },
+    bundle_discount: bundlePct(settings),
   };
 }
 async function mepayload(user) {
   const groups = user.role === 'student' ? await db.all(`SELECT g.id, g.name FROM group_members gm JOIN groups g ON g.id = gm.group_id
     WHERE gm.user_id = ? AND gm.left_at IS NULL AND NOT g.archived ORDER BY gm.joined_at`, [user.id]).catch(() => []) : [];
-  return { ...publicUser(user), group: groups[0] || null, groups, access: await accessFor(user), usage: await usageOf(user) };
+  return { ...publicUser(user), subject: subjectOf(user.subject), group: groups[0] || null, groups, access: await accessFor(user),
+    usage: await usageOf(user), math_usage: user.role === 'student' ? await usageOf(user, 'math') : { cap: 0, used: 0, left: null } };
 }
 
 // ---------- public ----------
@@ -307,7 +320,7 @@ app.post('/api/auth/login', h(async (req, res) => {
   if (u.disabled) return bad(res, 'This account is turned off. Ask the teacher.', 403);
   if (u.role === 'master') {
     const seen = await db.one("SELECT 1 AS x FROM audit_log WHERE action = 'login' AND actor_id = ? AND ip = ? LIMIT 1", [u.id, clientIp(req)]);
-    await audit({ ...req, user: u }, 'login', `teacher ${u.id}`);
+    await audit({ headers: req.headers, socket: req.socket, user: u }, 'login', `teacher ${u.id}`);
     if (!seen) notifyAdmins(`🔐 ${u.admin_perms != null ? `Admin «${u.name}»` : 'Teacher account'} signed in from a new network. IP: ${clientIp(req)}. If this was not you, change the password and press “Sign out everywhere”.`);
   }
   await db.run('UPDATE users SET last_login_at = now() WHERE id = ?', [u.id]);
@@ -375,7 +388,7 @@ app.use('/api', (req, res, next) => (PUBLIC.has(req.path) && req.path !== '/temp
 // admin accounts: only their sections, and what they change goes to the activity log (admins.js)
 app.use('/api', adminGuard());
 // free daily limit: today's count, and counting one answer the moment it is picked inside a test
-app.get('/api/usage', h(async (req, res) => res.json(await usageOf(req.user))));
+app.get('/api/usage', h(async (req, res) => res.json(await usageOf(req.user, req.query.subject === 'math' ? 'math' : 'english'))));
 app.post('/api/usage/answer', requireStudent, h(async (req, res) => {
   const keys = (Array.isArray(req.body?.keys) ? req.body.keys : [req.body?.key]).map(String).filter((k) => /^(qz|fm|lc|wic):[\w:.-]{1,100}$/.test(k)).slice(0, 60);
   const m = await meterAnswers(req.user, keys);
@@ -396,6 +409,7 @@ registerVocab(app, { h, bad, requireMaster, requireStudent, accessFor: (u) => ac
 registerPlacement(app, { h, bad, requireStudent, requireMaster });
 registerLessons(app, { h, bad, requireStudent, requireMaster, roadmapFor: (u) => roadmapFor(u), accessFor: (u) => accessFor(u) });
 registerMath(app, { h, bad, requireStudent, requireMaster });
+registerSubjects(app, { h, bad, requireStudent, requireMaster });
 registerQbank(app, { h, bad, requireStudent, requireMaster, accessFor: (u) => accessFor(u), upload, usedToday,
   itemOpen: async (user, itemId) => (await roadmapFor(user)).steps.some((st) => st.status !== 'locked' && st.items.some((i) => i.id === Number(itemId))) });
 registerFullMocks(app, { h, bad, requireStudent, requireMaster, upload });
@@ -619,6 +633,9 @@ app.put('/api/settings', requireMaster, h(async (req, res) => {
   if ('lesson_unlock_price' in b) patch.lesson_unlock_price = String(Math.max(0, Math.min(10_000_000, Number(digits(b.lesson_unlock_price)) || 0)));
   if ('quiz_extra_price' in b) patch.quiz_extra_price = digits(b.quiz_extra_price) || '0';
   if ('free_q_day' in b) patch.free_q_day = String(Math.max(0, Math.min(999, Math.round(+b.free_q_day || 0))));
+  if ('math_free_day' in b) patch.math_free_day = String(Math.max(0, Math.min(999, Math.round(+b.math_free_day || 0))));
+  if ('math_free_lessons' in b) patch.math_free_lessons = String(Math.max(0, Math.min(50, Math.round(+b.math_free_lessons || 0))));
+  if ('bundle_discount' in b) patch.bundle_discount = String(Math.max(0, Math.min(90, Math.round(+b.bundle_discount || 0))));
   if ('bunny_library_id' in b) patch.bunny_library_id = String(b.bunny_library_id || '').replace(/\D/g, '').slice(0, 12);
   for (const k of ['bunny_api_key', 'bunny_token_key', 'giphy_key']) if (k in b && !String(b[k]).startsWith('••••')) patch[k] = String(b[k] || '').trim().replace(/[^\w-]/g, '').slice(0, 100);
   if ('live_link' in b) patch.live_link = /^https?:\/\//i.test(String(b.live_link || '').trim()) ? String(b.live_link).trim().slice(0, 300) : '';
@@ -635,13 +652,13 @@ app.put('/api/settings', requireMaster, h(async (req, res) => {
 const studentRow = `SELECT u.id, u.name, u.login, u.email, u.phone, u.provider, u.avatar_url, u.group_id, u.target_english, u.target_math,
   ARRAY(SELECT gm.group_id FROM group_members gm WHERE gm.user_id = u.id AND gm.left_at IS NULL ORDER BY gm.joined_at) AS group_ids,
   (SELECT string_agg(g2.name, ', ' ORDER BY gm.joined_at) FROM group_members gm JOIN groups g2 ON g2.id = gm.group_id WHERE gm.user_id = u.id AND gm.left_at IS NULL) AS group_name,
-  u.exam_date, u.created_at, u.last_login_at, u.balance, u.diagnostic_score, u.cefr, u.admitted, u.placement_at, u.sub_until, u.sub_plan,
+  u.exam_date, u.created_at, u.last_login_at, u.balance, u.diagnostic_score, u.cefr, u.admitted, u.placement_at, u.sub_until, u.sub_plan, u.math_sub_until, u.math_sub_plan,
   (SELECT MAX(finished_at) FROM attempts a WHERE a.user_id = u.id) AS last_active,
   (SELECT COUNT(*) FROM attempts a WHERE a.user_id = u.id AND a.finished_at IS NOT NULL) AS attempts,
   (SELECT COALESCE(SUM(seconds), 0) FROM user_activity x WHERE x.user_id = u.id AND x.day > CURRENT_DATE - 7) AS week_seconds,
   (SELECT MAX(day) FROM user_activity x WHERE x.user_id = u.id) AS last_seen_day
   FROM users u WHERE u.role = 'student'`;
-const withSub = (s) => ({ ...s, group_ids: (s.group_ids || []).map(Number), sub_active: subActive(s) });
+const withSub = (s) => ({ ...s, group_ids: (s.group_ids || []).map(Number), sub_active: subActive(s), math_sub_active: subActive(asSubject(s, 'math')) });
 app.get('/api/students', requireMaster, h(async (req, res) => {
   const rows = await db.all(studentRow + ' ORDER BY u.created_at DESC, u.id DESC');
   const out = await Promise.all(rows.map(async (s) => {
@@ -782,22 +799,27 @@ app.get('/api/students/:id/analytics', requireMaster, h(async (req, res) => {
 app.post('/api/students/:id/subscription', requireMaster, h(async (req, res) => {
   const s = await db.one("SELECT * FROM users WHERE id = ? AND role = 'student'", [req.params.id]);
   if (!s) return bad(res, 'Not found', 404);
+  const subject = subjectOf(req.body?.subject);
+  const cur = asSubject(s, subject);
   const days = Math.max(1, Math.min(730, Math.round(+req.body?.days || 30)));
-  const plan = ['t1', 't2', 't3', 't4'].includes(req.body?.plan) ? req.body.plan : (subActive(s) && s.sub_plan) || 't2';
+  const plans = subject === 'math' ? ['t1', 't2', 't3'] : ['t1', 't2', 't3', 't4'];
+  const plan = plans.includes(req.body?.plan) ? req.body.plan : (subActive(cur) && plans.includes(cur.sub_plan) && cur.sub_plan) || 't2';
   const amount = Math.max(0, Math.round(+req.body?.amount || 0));
   const settings = await getSettings();
-  const from = subActive(s) ? new Date(s.sub_until) : new Date();
+  const from = subActive(cur) ? new Date(cur.sub_until) : new Date();
   const until = new Date(from.getTime() + days * 86400e3).toISOString();
   await db.tx(async (t) => {
-    await t.run('UPDATE users SET sub_until = ?, sub_plan = ? WHERE id = ?', [until, plan, s.id]);
+    if (subject === 'math') await t.run('UPDATE users SET math_sub_until = ?, math_sub_plan = ? WHERE id = ?', [until, plan, s.id]);
+    else await t.run('UPDATE users SET sub_until = ?, sub_plan = ? WHERE id = ?', [until, plan, s.id]);
     await t.run("INSERT INTO payments (user_id, provider, plan, days, amount, currency, note, created_by) VALUES (?, 'manual', ?, ?, ?, ?, ?, ?)",
-      [s.id, plan, days, amount, settings.currency, String(req.body?.note || '').slice(0, 300), req.user.id]);
+      [s.id, subject === 'math' ? `math:${plan}` : plan, days, amount, settings.currency, String(req.body?.note || '').slice(0, 300), req.user.id]);
   });
-  await audit(req, 'subscription_granted', `student ${s.id}`, `${plan} · ${days} days · ${amount}`);
-  res.json({ sub_until: until, sub_active: true });
+  await audit(req, 'subscription_granted', `student ${s.id}`, `${subject === 'math' ? 'Math ' : ''}${plan} · ${days} days · ${amount}`);
+  res.json(subject === 'math' ? { math_sub_until: until, math_sub_active: true } : { sub_until: until, sub_active: true });
 }));
 app.delete('/api/students/:id/subscription', requireMaster, h(async (req, res) => {
-  await db.run("UPDATE users SET sub_until = NULL WHERE id = ? AND role = 'student'", [req.params.id]);
+  if (req.query.subject === 'math') await db.run("UPDATE users SET math_sub_until = NULL WHERE id = ? AND role = 'student'", [req.params.id]);
+  else await db.run("UPDATE users SET sub_until = NULL WHERE id = ? AND role = 'student'", [req.params.id]);
   await audit(req, 'subscription_cancelled', `student ${req.params.id}`);
   res.json({ ok: true });
 }));
@@ -1001,7 +1023,8 @@ app.post('/api/quizzes/:id/start', requireStudent, h(async (req, res) => {
   }
   if (quiz.kind !== 'diagnostic') {
     const acc = await accessFor(req.user);
-    if (!acc.can_practice) return bad(res, 'An active subscription is required to practice', 402, { code: 'subscription_required' });
+    const ok = quiz.section === 'math' ? acc.math?.can_practice : acc.can_practice;
+    if (!ok) return bad(res, quiz.section === 'math' ? 'Math quizzes come with a Math plan' : 'An active subscription is required to practice', 402, { code: 'subscription_required' });
   }
   let attempt = await db.one('SELECT * FROM attempts WHERE user_id = ? AND quiz_id = ? AND finished_at IS NULL', [req.user.id, quiz.id]);
   if (!attempt) {
@@ -1530,7 +1553,7 @@ if (fs.existsSync(dist)) {
 
 app.use((err, req, res, next) => {
   if (err?.code === 'LIMIT_FILE_SIZE') return bad(res, 'File is too large (max 15 MB)');
-  if (err instanceof HttpError || Number.isInteger(err?.status)) return bad(res, err.message, err.status || 400, typeof err.code === 'string' && /^[a-z_]+$/.test(err.code) ? { code: err.code } : {});
+  if (err instanceof HttpError || Number.isInteger(err?.status)) return bad(res, err.message, err.status || 400, typeof err.code === 'string' && /^[a-z_]+$/.test(err.code) ? { code: err.code, ...(err.subject === 'math' ? { subject: 'math' } : {}) } : {});
   console.error(err);
   // the teacher sees the real reason (helps fixing it); students only a short message
   res.status(500).json({ error: req.user?.role === 'master' ? `Server error: ${String(err?.message || err).slice(0, 300)}` : 'Server error' });

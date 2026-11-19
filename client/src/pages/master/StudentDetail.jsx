@@ -74,7 +74,8 @@ export default function StudentDetail() {
               {pl.results[0] && <small className={pl.results[0].admitted ? 'muted' : 'muted'}>{pl.results[0].admitted ? 'Ready for the course' : 'Below the course level'}</small>}</Card>
             <Card className={`sub-card ${s.sub_active ? 'on' : 'off'}`}><small className="muted">Subscription</small>
               <b style={{ display: 'block', color: s.sub_active ? 'var(--good)' : 'var(--bad)' }}>{s.sub_active ? `${PLAN_NAME[s.sub_plan] || 'Plan'} · until ${fmtDate(s.sub_until)}` : 'Free (no plan)'}</b>
-              <button className="link-btn" onClick={() => setSub(true)}>{s.sub_active ? 'Extend or cancel' : 'Activate now'} →</button></Card>
+              <button className="link-btn" onClick={() => setSub(true)}>{s.sub_active ? 'Extend or cancel' : 'Activate now'} →</button>
+              <small className="muted sub-math">Math: {s.math_sub_active ? `${PLAN_NAME[s.math_sub_plan] || 'Plan'} · until ${fmtDate(s.math_sub_until)}` : 'no plan'} · <button className="link-btn" onClick={() => setSub('math')}>{s.math_sub_active ? 'Extend' : 'Give Math'}</button></small></Card>
             <Balance id={s.id} />
           </div>
           <Segmented value={tab} onChange={setTab} options={[{ value: 'report', label: 'Full report' }, { value: 'tasks', label: 'Assignments' }, { value: 'analytics', label: 'Quiz analysis' }, { value: 'portfolio', label: 'Portfolio' }, { value: 'payments', label: 'Payments', count: s.payments.length }]} />
@@ -89,7 +90,7 @@ export default function StudentDetail() {
             </Card>
           )}
           <WeeklyLessons id={s.id} />
-          {sub && <SubscriptionModal student={s} onClose={() => setSub(false)} onDone={() => { setSub(false); st.reload(); }} />}
+          {sub && <SubscriptionModal student={s} subject={sub === 'math' ? 'math' : 'english'} onClose={() => setSub(false)} onDone={() => { setSub(false); st.reload(); }} />}
           {edit && <EditStudent s={s} groups={groups} onClose={() => setEdit(false)} onSaved={() => { setEdit(false); toast("Saved"); st.reload(); }} />}
           {resetAsk && <Confirm title="Reset this student's password?" confirmLabel="Yes, make a new password" onClose={() => setResetAsk(false)}
             onConfirm={async () => { setResetAsk(false); try { const r = await api.post(`/students/${s.id}/reset-password`, { confirm: true }); setCred({ title: "New password", rows: [{ name: s.name, login: r.login, password: r.password }] }); } catch (e) { toast(e.message, 'bad'); } }}

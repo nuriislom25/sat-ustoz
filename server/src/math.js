@@ -15,6 +15,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { db } from './db.js';
 import { meterAnswers, limitError } from './tiers.js';
+import { logMath } from './mathroad.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const STARTER_FILE = path.join(here, 'math', 'starter.json');
@@ -59,18 +60,18 @@ export async function syncMath() {
 }
 
 /** What a student may see before answering (no key). */
-const pub = (q) => ({ id: q.id, domain: q.domain, skill: q.skill, difficulty: q.difficulty, kind: q.kind, prompt: q.prompt, options: JSON.parse(q.options || '[]') });
+export const pub = (q) => ({ id: q.id, domain: q.domain, skill: q.skill, difficulty: q.difficulty, kind: q.kind, prompt: q.prompt, options: JSON.parse(q.options || '[]') });
 const full = (q) => ({ ...pub(q), answer: q.kind === 'spr' ? JSON.parse(q.answer || '[]') : q.answer, explanation: q.explanation, tip: q.tip, source: q.source, active: q.active, edited: q.edited });
 
 /** Typed answers: "3/4", ".75", "0.75", "-2", "1,000" all compare by value; the SAT accepts any equivalent form. */
-const toNum = (s) => {
+export const toNum = (s) => {
   const t = String(s).trim().replace(/\s+/g, '').replace(/,/g, '').replace(/^\+/, '');
   if (/^-?\d*\.?\d+$/.test(t)) return Number(t);
   const m = t.match(/^(-?\d*\.?\d+)\/(-?\d*\.?\d+)$/);
   if (m && Number(m[2]) !== 0) return Number(m[1]) / Number(m[2]);
   return null;
 };
-function sprCorrect(given, accepted) {
+export function sprCorrect(given, accepted) {
   const g = String(given || '').trim();
   if (!g) return false;
   const gv = toNum(g);
@@ -154,7 +155,7 @@ export function registerMath(app, { h, bad, requireStudent, requireMaster }) {
     const q = await db.one('SELECT * FROM math_questions WHERE id = ? AND active', [req.params.id]);
     if (!q) return bad(res, 'Question not found', 404);
     const meter = await meterAnswers(req.user, [`mt:${q.id}`]);
-    if (meter.refused) throw limitError(meter.cap);
+    if (meter.refused) throw limitError(meter.cap, 'math');
     let given; let correct;
     if (q.kind === 'spr') {
       given = String(req.body?.value ?? '').trim().slice(0, 20);
@@ -168,6 +169,7 @@ export function registerMath(app, { h, bad, requireStudent, requireMaster }) {
     }
     const attempt = Math.max(1, Math.min(3, Number(req.body?.attempt) || 1));
     if (attempt === 1) {
+      await logMath(req.user.id, correct ? 1 : 0);
       await db.run(`INSERT INTO math_answers (user_id, question_id, given, correct, first_correct, tries, answered_at) VALUES (?,?,?,?,?,1,now())
         ON CONFLICT (user_id, question_id) DO UPDATE SET given = EXCLUDED.given, correct = EXCLUDED.correct, tries = math_answers.tries + 1, answered_at = now()`,
       [req.user.id, q.id, given, correct, correct]);

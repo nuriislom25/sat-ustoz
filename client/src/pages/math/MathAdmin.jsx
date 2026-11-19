@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { api } from '../../api.js';
 import { useToast } from '../../context.jsx';
-import { Card, Confirm, Field, Gate, Modal, PageHeader, useAsync } from '../../components/ui.jsx';
+import { Card, Confirm, Field, Gate, Modal, PageHeader, Segmented, useAsync } from '../../components/ui.jsx';
 import { IconEye, IconEyeOff, IconPlus, IconSearch, IconTrash } from '../../components/icons.jsx';
 import MathText from './MathText.jsx';
+import MathRoadAdmin from './MathRoadAdmin.jsx';
 
 const L = ['A', 'B', 'C', 'D'];
 const LEVEL = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
@@ -16,13 +17,15 @@ export default function MathAdmin() {
   const [q, setQ] = useState('');
   const [edit, setEdit] = useState(null);
   const [del, setDel] = useState(null);
+  const [tab, setTab] = useState('roadmap');
   const toggle = async (x) => { try { await api.put(`/math/admin/${x.id}`, { active: !x.active }); st.reload(); } catch (e) { toast(e.message, 'bad'); } };
   return (
     <div className="page math-page">
-      <PageHeader title="SAT Math" sub="Questions students practise in the Math section, with the Desmos calculator. Write formulas between $ signs, e.g. $x^2 + 3x$ or $\frac{3}{4}$.">
-        <button className="btn primary" onClick={() => setEdit({})}><IconPlus width={16} height={16} /> New question</button>
+      <PageHeader title="SAT Math" sub={tab === 'roadmap' ? 'The Math roadmap: video lessons in order, each with a practice and a pass mark.' : 'Questions students practise in the Math section, with the Desmos calculator. Write formulas between $ signs, e.g. $x^2 + 3x$ or $\\frac{3}{4}$.'}>
+        {tab === 'questions' && <button className="btn primary" onClick={() => setEdit({})}><IconPlus width={16} height={16} /> New question</button>}
       </PageHeader>
-      <Gate state={st}>{(d) => <List d={d} {...{ dom, setDom, q, setQ, setEdit, setDel, toggle }} />}</Gate>
+      <Segmented value={tab} onChange={setTab} options={[{ value: 'roadmap', label: 'Roadmap lessons' }, { value: 'questions', label: 'Questions' }]} />
+      {tab === 'roadmap' ? <MathRoadAdmin /> : <Gate state={st}>{(d) => <List d={d} {...{ dom, setDom, q, setQ, setEdit, setDel, toggle }} />}</Gate>}
       {edit && st.data && <Editor x={edit} domains={st.data.domains} onClose={() => setEdit(null)} onDone={() => { setEdit(null); st.reload(); }} />}
       {del && <Confirm title="Delete this question?" text={del.source === 'starter' ? 'This is a built-in question: it will be hidden from students.' : 'Students’ answers to it are removed too.'} confirmLabel="Delete"
         onClose={() => setDel(null)} onConfirm={async () => { try { await api.del(`/math/admin/${del.id}`); setDel(null); st.reload(); } catch (e) { toast(e.message, 'bad'); } }} />}

@@ -38,7 +38,7 @@ export function readTiers(settings) {
   return DEFAULT_TIERS.map((d) => {
     const t = list.find((x) => x.id === d.id) || {};
     return {
-      ...d, name: String(nameOf(t, d)).slice(0, 30), price: int(t.price, d.price),
+      ...d, name: String(nameOf(t, d)).slice(0, 30), price: int(t.price, d.price), math_price: int(t.math_price, int(t.price, d.price)),
       q_day: int(t.q_day, d.q_day), quiz_day: int(t.quiz_day, d.quiz_day), fm_week: int(t.fm_week, d.fm_week),
       consult_days: int(t.consult_days, d.consult_days), consult_min: int(t.consult_min, d.consult_min),
     };
@@ -48,52 +48,65 @@ export function cleanTiers(input) {
   const list = Array.isArray(input) ? input : [];
   return JSON.stringify(DEFAULT_TIERS.map((d) => {
     const t = list.find((x) => x?.id === d.id) || {};
-    return { id: d.id, name: String(nameOf(t, d)).trim().slice(0, 30) || d.name, price: int(t.price, d.price), q_day: int(t.q_day, d.q_day), quiz_day: int(t.quiz_day, d.quiz_day),
+    return { id: d.id, name: String(nameOf(t, d)).trim().slice(0, 30) || d.name, price: int(t.price, d.price), math_price: int(t.math_price, int(t.price, d.price)), q_day: int(t.q_day, d.q_day), quiz_day: int(t.quiz_day, d.quiz_day),
       fm_week: int(t.fm_week, d.fm_week), consult_days: int(t.consult_days, d.consult_days), consult_min: int(t.consult_min, d.consult_min) };
   }));
 }
 
-/** The tier a user has right now (features + limits). */
-export function tierOf(user, settings) {
+/**
+ * The tier a user has right now (features + limits) for one subject. English and Math are bought separately:
+ * English uses users.sub_until / sub_plan, Math uses users.math_sub_until / math_sub_plan (same plan levels).
+ * Math has no live lessons; a student without a Math plan gets the Math free trial (a few questions a day and
+ * the first lessons of the Math roadmap).
+ */
+export const SUBJECTS = ['english', 'math'];
+export const subjectOf = (v) => (v === 'math' ? 'math' : 'english');
+export const asSubject = (user, subject) => (subject === 'math' && user ? { ...user, sub_until: user.math_sub_until, sub_plan: user.math_sub_plan } : user);
+export function tierOf(user, settings, subject = 'english') {
   if (user?.role === 'master') return ALL;
   const tiers = readTiers(settings);
+  const u = asSubject(user, subject);
   // free mode (teacher turned off "require a subscription"): every student gets everything self-paced (Pro Max level);
   // live 1-on-1 lessons stay booked and paid
   if (settings?.require_subscription !== 'true') {
     const top = tiers.find((t) => t.id === 't3') || tiers[tiers.length - 1];
-    if (subActive(user) && user.sub_plan === 't4') return tiers.find((t) => t.id === 't4') || top;
+    if (subject !== 'math' && subActive(u) && u.sub_plan === 't4') return tiers.find((t) => t.id === 't4') || top;
     return { ...top, id: 'open', name: 'Free access', price: 0, q_day: 0, quiz_day: 0, fm_week: 0 };
   }
-  if (subActive(user)) {
-    const id = tiers.some((t) => t.id === user.sub_plan) ? user.sub_plan : LEGACY[user.sub_plan] || 't3';
-    return tiers.find((t) => t.id === id);
+  if (subActive(u)) {
+    const id = tiers.some((t) => t.id === u.sub_plan) ? u.sub_plan : LEGACY[u.sub_plan] || 't3';
+    const t = tiers.find((x) => x.id === id);
+    return subject === 'math' ? { ...t, live: false } : t;
   }
+  if (subject === 'math') return { ...FREE_TIER, fm_week: 0, q_day: int(settings.math_free_day, 10), free_lessons: int(settings.math_free_lessons, 2) };
   return { ...FREE_TIER, fm_week: int(settings.fm_free, 1), q_day: int(settings.free_q_day, FREE_TIER.q_day) };
 }
+/** Discount (percent) when the other subject is also paid. */
+export const bundlePct = (settings) => Math.max(0, Math.min(90, int(settings.bundle_discount, 20)));
 
 const TODAY = "date_trunc('day', now() AT TIME ZONE 'Asia/Tashkent') AT TIME ZONE 'Asia/Tashkent'";
 const DAY = "(now() AT TIME ZONE 'Asia/Tashkent')::date";
 /** Answers counted today (free limit) and Take a quiz starts used today. */
-export async function usedToday(userId) {
-  const q = await db.one(`SELECT COUNT(*) AS n FROM usage_answers WHERE user_id = ? AND day = ${DAY}`, [userId]);
+export async function usedToday(userId, subject = 'english') {
+  const q = await db.one(`SELECT COUNT(*) AS n FROM usage_answers WHERE user_id = ? AND day = ${DAY} AND ${subject === 'math' ? "k LIKE 'mt:%'" : "k NOT LIKE 'mt:%'"}`, [userId]);
   const m = await db.one(`SELECT COUNT(*) AS n FROM qbank_mocks WHERE user_id = ? AND started_at >= ${TODAY} AND NOT paid AND item_id IS NULL`, [userId]).catch(() => ({ n: 0 }));
   return { questions: Number(q.n), quizzes: Number(m.n) };
 }
 
 /** The daily answer limit of this user (0 = none). */
-export async function dailyCap(user) {
+export async function dailyCap(user, subject = 'english') {
   if (!user || user.role !== 'student') return 0;
   const s = await getSettings();
   if (s.require_subscription !== 'true') return 0;
-  return tierOf(user, s).q_day || 0;
+  return tierOf(user, s, subject).q_day || 0;
 }
-export async function usageOf(user) {
-  const cap = await dailyCap(user);
+export async function usageOf(user, subject = 'english') {
+  const cap = await dailyCap(user, subject);
   if (!cap) return { cap: 0, used: 0, left: null };
-  const used = (await usedToday(user.id)).questions;
+  const used = (await usedToday(user.id, subject)).questions;
   return { cap, used, left: Math.max(0, cap - used) };
 }
-export const limitError = (cap) => Object.assign(new Error(`You have used today's ${cap} free questions. They come back tomorrow, or get a plan for unlimited practice.`), { status: 402, code: 'daily_limit' });
+export const limitError = (cap, subject = 'english') => Object.assign(new Error(`You have used today's ${cap} free ${subject === 'math' ? 'Math ' : ''}questions. They come back tomorrow, or get a ${subject === 'math' ? 'Math ' : ''}plan for unlimited practice.`), { status: 402, code: 'daily_limit', subject });
 
 /**
  * The one meter for every answer on the platform. `keys` are answer ids like "fm:12:q-3" (what, which test, which
@@ -102,17 +115,18 @@ export const limitError = (cap) => Object.assign(new Error(`You have used today'
  */
 export async function meterAnswers(user, keys) {
   keys = [...new Set(keys.map((k) => String(k).slice(0, 120)))];
-  const cap = await dailyCap(user);
+  const subject = keys.length && keys.every((k) => k.startsWith('mt:')) ? 'math' : 'english';
+  const cap = await dailyCap(user, subject);
   if (!cap || !keys.length) return { allowed: new Set(keys), refused: 0, cap };
   const known = new Set((await db.all('SELECT k FROM usage_answers WHERE user_id = ? AND k = ANY(?::text[])', [user.id, keys])).map((r) => r.k));
   const fresh = keys.filter((k) => !known.has(k));
-  let left = fresh.length ? Math.max(0, cap - (await usedToday(user.id)).questions) : 0;
+  let left = fresh.length ? Math.max(0, cap - (await usedToday(user.id, subject)).questions) : 0;
   for (const k of fresh) {
     if (left <= 0) break;
     const r = await db.one(`INSERT INTO usage_answers (user_id, k, day) VALUES (?, ?, ${DAY}) ON CONFLICT DO NOTHING RETURNING k`, [user.id, k]);
     known.add(k); if (r) left--;
   }
-  return { allowed: known, refused: keys.length - known.size, cap };
+  return { allowed: known, refused: keys.length - known.size, cap, subject };
 }
 /** Keep only the answers the meter allows: { qid: choice } with keys `${prefix}${qid}`. Throws when one is refused. */
 export async function meterMap(user, prefix, answers, { strict = true } = {}) {
@@ -195,12 +209,13 @@ export async function moveBalance(t, userId, amount, reason, { note = '', ref = 
 export function registerTiers(app, { h, bad, requireMaster, requireStudent }) {
   app.get('/api/plans', h(async (req, res) => {
     const s = await getSettings();
-    res.json({ tiers: readTiers(s), free: tierOf({ role: 'student' }, s), currency: s.currency, fm_extra_price: int(s.fm_extra_price, 20000),
+    res.json({ tiers: readTiers(s), free: tierOf({ role: 'student' }, s), math_free: tierOf({ role: 'student' }, s, 'math'), bundle_discount: bundlePct(s),
+      currency: s.currency, fm_extra_price: int(s.fm_extra_price, 20000),
       card: s.pay_card ? { number: s.pay_card, holder: s.pay_holder } : null, live: s.live_note || '' });
   }));
 
   app.post('/api/plans/buy', requireStudent, h(async (req, res) => {
-    res.json(await buyPlan(req.user.id, req.body?.plan, req.body?.months, req.body?.key));
+    res.json(await buyPlan(req.user.id, req.body?.plan, req.body?.months, req.body?.key, req.body?.subject));
   }));
 
   app.get('/api/me/balance', h(async (req, res) => {
@@ -320,26 +335,41 @@ export const MAX_TOPUP = 10_000_000;
  * Buy a plan from the wallet: one transaction takes the money and extends the subscription.
  * `key` (a random id from the client) makes a double click charge only once.
  */
-export async function buyPlan(userId, tierId, months, key) {
+export async function buyPlan(userId, tierId, months, key, subject = 'english') {
   const s = await getSettings();
   const tier = readTiers(s).find((t) => t.id === tierId);
+  const which = subject === 'both' ? ['english', 'math'] : [subjectOf(subject)];
   if (!tier || !tier.price) throw Object.assign(new Error('Choose a plan'), { status: 400 });
-  if (tier.live) throw Object.assign(new Error('Ultra comes with a fixed lesson time: pick one on the Live lessons page'), { status: 400 });
+  if (tier.live) throw Object.assign(new Error(which.includes('math') ? 'Math has no live lessons: choose Plus, Pro or Pro Max' : 'Ultra comes with a fixed lesson time: pick one on the Live lessons page'), { status: 400 });
   months = [1, 3, 6, 12].includes(Number(months)) ? Number(months) : 1;
-  const price = tier.price * months;
-  if (key && (await db.one('SELECT id FROM balance_ledger WHERE ref = ?', [`buy:${userId}:${String(key).slice(0, 40)}`]))) {
-    const u = await db.one('SELECT sub_until, balance FROM users WHERE id = ?', [userId]);
-    return { until: u.sub_until, balance: Number(u.balance), plan: tier.id, already: true };
+  const ref = key ? `buy:${userId}:${String(key).slice(0, 40)}` : null;
+  if (ref && (await db.one('SELECT id FROM balance_ledger WHERE ref = ?', [ref]))) {
+    const u = await db.one('SELECT sub_until, math_sub_until, balance FROM users WHERE id = ?', [userId]);
+    return { until: u.sub_until, math_until: u.math_sub_until, balance: Number(u.balance), plan: tier.id, already: true };
   }
   return db.tx(async (t) => {
     const u = await t.one('SELECT * FROM users WHERE id = ? FOR UPDATE', [userId]);
-    const after = await moveBalance(t, userId, -price, 'subscription', { note: `${tier.name} · ${months} mo`, ref: key ? `buy:${userId}:${String(key).slice(0, 40)}` : null });
+    // both subjects at once, or the other subject already paid → the bundle discount
+    const other = which.length === 1 && subActive(asSubject(u, which[0] === 'math' ? 'english' : 'math'));
+    const pct = which.length === 2 || other ? bundlePct(s) : 0;
+    const base = which.reduce((sum, w) => sum + (w === 'math' ? tier.math_price || tier.price : tier.price), 0) * months;
+    const price = Math.round((base * (100 - pct)) / 100);
+    const label = `${tier.name}${which.length === 2 ? ' · English + Math' : which[0] === 'math' ? ' · Math' : ''} · ${months} mo${pct ? ` · -${pct}%` : ''}`;
+    const after = await moveBalance(t, userId, -price, 'subscription', { note: label, ref });
     if (after == null) throw Object.assign(new Error('Not enough money in your wallet. Top it up first.'), { status: 402 });
-    const active = subActive(u) && u.sub_plan === tier.id;
-    const from = active ? new Date(u.sub_until) : new Date();
-    const until = new Date(from.getTime() + months * 30 * 86400e3).toISOString();
-    await t.run('UPDATE users SET sub_until = ?, sub_plan = ? WHERE id = ?', [until, tier.id, userId]);
-    await t.run("INSERT INTO payments (user_id, provider, plan, days, amount, currency, note) VALUES (?, 'wallet', ?, ?, ?, ?, ?)", [userId, tier.id, months * 30, price, s.currency || 'UZS', `From wallet · ${tier.name}`]);
-    return { until, balance: after, plan: tier.id };
+    const out = { balance: after, plan: tier.id, price, discount: pct };
+    for (const w of which) {
+      const cur = asSubject(u, w);
+      const from = subActive(cur) && cur.sub_plan === tier.id ? new Date(cur.sub_until) : new Date();
+      const until = new Date(from.getTime() + months * 30 * 86400e3).toISOString();
+      if (w === 'math') { await t.run('UPDATE users SET math_sub_until = ?, math_sub_plan = ? WHERE id = ?', [until, tier.id, userId]); out.math_until = until; }
+      else { await t.run('UPDATE users SET sub_until = ?, sub_plan = ? WHERE id = ?', [until, tier.id, userId]); out.until = until; }
+    }
+    const share = Math.round(price / which.length);
+    for (const w of which) {
+      await t.run("INSERT INTO payments (user_id, provider, plan, days, amount, currency, note) VALUES (?, 'wallet', ?, ?, ?, ?, ?)",
+        [userId, w === 'math' ? `math:${tier.id}` : tier.id, months * 30, share, s.currency || 'UZS', `From wallet · ${label}`]);
+    }
+    return out;
   });
 }

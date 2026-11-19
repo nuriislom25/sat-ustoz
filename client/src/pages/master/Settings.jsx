@@ -56,17 +56,26 @@ function Form({ init }) {
         <h2>Plans</h2>
         <small className="muted">Price is per month (Ultra: per 12 live lessons, booked on the Live lessons page). Questions / day counts every answer on the platform; 0 = unlimited (also for full mocks a week).</small>
         <div className="table-wrap"><table className="t plans-edit">
-          <thead><tr><th>Plan</th><th>Name</th><th>Price / month</th><th>Questions / day</th><th>Quizzes / day</th><th>Full mocks / week</th><th>Consultation every … days</th></tr></thead>
+          <thead><tr><th>Plan</th><th>Name</th><th>Price / month</th><th>Math price</th><th>Questions / day</th><th>Quizzes / day</th><th>Full mocks / week</th><th>Consultation every … days</th></tr></thead>
           <tbody>{f.tiers.map((t, i) => (
             <tr key={t.id}><td><b>{i + 1}</b></td>
-              {[['name', 'text'], ['price'], ['q_day'], ['quiz_day'], ['fm_week'], ['consult_days']].map(([k, type]) => (
-                <td key={k}><input type={type || 'number'} min="0" value={t[k]} disabled={k === 'consult_days' && i === 0}
+              {[['name', 'text'], ['price'], ['math_price'], ['q_day'], ['quiz_day'], ['fm_week'], ['consult_days']].map(([k, type]) => (
+                <td key={k}><input type={type || 'number'} min="0" value={t[k] ?? ''} disabled={(k === 'consult_days' && i === 0) || (k === 'math_price' && t.live)} title={k === 'math_price' && t.live ? 'Math has no live lessons' : undefined}
                   onChange={(e) => setF({ ...f, tiers: f.tiers.map((x) => (x.id === t.id ? { ...x, [k]: e.target.value } : x)) })} /></td>
               ))}
             </tr>
           ))}</tbody>
         </table></div>
         <small className="muted">1 Plus: unlimited practice, quizzes, Word Vault · 2 Pro: + roadmap lessons (no video), consultations · 3 Pro Max: everything self-paced (video, ask the teacher, weekly consultation) · 4 Ultra: everything + 12 live 1-on-1 lessons at a fixed time.</small>
+        <div className="math-set">
+          <h3>SAT Math</h3>
+          <small className="muted">Math is a separate plan: the same Plus / Pro / Pro Max with Math prices above (Pro and higher open the Math roadmap). Students without a Math plan get a free trial.</small>
+          <div className="grid g3">
+            <Field label="Math trial: questions / day" hint="Math practice and lesson questions"><input type="number" min="0" value={f.math_free_day ?? 10} onChange={set('math_free_day')} /></Field>
+            <Field label="Math trial: free roadmap lessons" hint="the first lessons of the Math roadmap"><input type="number" min="0" max="50" value={f.math_free_lessons ?? 2} onChange={set('math_free_lessons')} /></Field>
+            <Field label="English + Math discount, %" hint="buying both, or the second subject while the first is active"><input type="number" min="0" max="90" value={f.bundle_discount ?? 20} onChange={set('bundle_discount')} /></Field>
+          </div>
+        </div>
         <div className="grid g3">
           <Field label="Free: questions / day" hint="every test counts: practice, quizzes, full mocks, level checks, Words in Context"><input type="number" min="0" value={f.free_q_day} onChange={set('free_q_day')} /></Field>
           <Field label="Free: full mocks / week"><input type="number" min="0" value={f.fm_free} onChange={set('fm_free')} /></Field>

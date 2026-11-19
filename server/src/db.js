@@ -361,6 +361,9 @@ const DEFAULT_SETTINGS = {
   focus_penalty: '30', // exam mode: seconds taken off the clock for each exit from the test
   fm_extra_price: '20000', // one full mock beyond the weekly limit, paid from the balance
   free_q_day: '100', // answers per day without a subscription (every test on the platform)
+  math_free_day: '10', // Math answers per day without a Math plan (free trial)
+  math_free_lessons: '2', // first Math roadmap lessons open without a Math plan
+  bundle_discount: '20', // percent off when a student pays for English and Math together (or the second subject)
   live_link: '',    // live online lessons (plan 4): meeting link
   live_note: '',    // ... and the schedule shown to students
   bunny_library_id: '', // Bunny Stream video library (video lessons)

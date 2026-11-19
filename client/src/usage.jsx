@@ -24,6 +24,8 @@ export function LimitWall() {
   const nav = useNavigate();
   const loc = useLocation();
   const cap = user?.usage?.cap || 0;
+  const math = hit?.subject === 'math';
+  const mcap = user?.math_usage?.cap || 10;
   useEffect(() => { metered = user?.role === 'student' && cap > 0; }, [user?.role, cap]);
   useEffect(() => {
     const on = (e) => setHit(e.detail || {});
@@ -34,6 +36,20 @@ export function LimitWall() {
   useEffect(() => { if (hit && (loc.pathname === '/subscribe' || loc.pathname === '/live')) setHit(null); }, [loc.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!hit) return null;
   const go = (to) => { setHit(null); nav(to); };
+  if (math) return (
+    <div className="lw-back" role="dialog" aria-modal="true" aria-labelledby="lw-h">
+      <div className="lw-card">
+        <span className="lw-ic"><IconLock width={26} height={26} /></span>
+        <h2 id="lw-h">Today's {mcap} free Math questions are used</h2>
+        <p>The free Math trial gives {mcap} questions a day. Your answers so far are saved.</p>
+        <p className="muted">New questions open at midnight (Tashkent time). A Math plan has no daily limit and opens every video lesson.</p>
+        <div className="lw-act">
+          <button className="btn primary lg" onClick={() => go('/subscribe?subject=math')}><IconCrown width={18} height={18} /> Buy Math</button>
+          <button className="btn ghost lg" onClick={() => go('/')}>Back to dashboard</button>
+        </div>
+      </div>
+    </div>
+  );
   return (
     <div className="lw-back" role="dialog" aria-modal="true" aria-labelledby="lw-h">
       <div className="lw-card">
@@ -52,11 +68,13 @@ export function LimitWall() {
 }
 
 /** "37 of 100 free questions left today" for free students (nothing for plans without a limit). */
-export function UsageChip({ className = '' }) {
+export function UsageChip({ className = '', subject = 'english' }) {
   const { user } = useAuth();
-  const [u, setU] = useState(user?.usage || null);
-  useEffect(() => { if (user?.usage?.cap) api.get('/usage').then(setU).catch(() => {}); }, [user?.usage?.cap]);
+  const math = subject === 'math';
+  const base = math ? user?.math_usage : user?.usage;
+  const [u, setU] = useState(base || null);
+  useEffect(() => { if (base?.cap) api.get(`/usage${math ? '?subject=math' : ''}`).then(setU).catch(() => {}); }, [base?.cap, math]);
   if (!u?.cap) return null;
-  const low = u.left <= 10;
-  return <span className={`chip ${low ? 'warn' : ''} ${className}`} title="Free accounts: questions a day across every test">{u.left} of {u.cap} free questions left today</span>;
+  const low = u.left <= (math ? 3 : 10);
+  return <span className={`chip ${low ? 'warn' : ''} ${className}`} title={math ? 'Free Math trial: questions a day' : 'Free accounts: questions a day across every test'}>{u.left} of {u.cap} free {math ? 'Math ' : ''}questions left today</span>;
 }

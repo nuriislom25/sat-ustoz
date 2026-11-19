@@ -72,9 +72,9 @@ export const Empty = ({ icon, title, text, children }) => (
   </div>
 );
 
-export function Gate({ state, children }) {
+export function Gate({ state, children, error }) {
   if (state.loading && !state.data) return <PageSkeleton />;
-  if (state.error) return <ErrorBox error={state.error} onRetry={state.reload} />;
+  if (state.error) return (error && error(state.error)) || <ErrorBox error={state.error} onRetry={state.reload} />;
   return children(state.data);
 }
 

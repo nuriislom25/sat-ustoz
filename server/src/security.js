@@ -40,7 +40,7 @@ export function securityHeaders(req, res, next) {
   next();
 }
 
-export const clientIp = (req) => String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
+export const clientIp = (req) => String(req.headers?.['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
 
 /**
  * Simple sliding-window limiter per IP (per server instance). Stops floods and scripted guessing;
