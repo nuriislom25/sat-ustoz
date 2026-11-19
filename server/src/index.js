@@ -32,6 +32,7 @@ import { migrateCalib } from './calibrate.js';
 import { registerQuality } from './quality.js';
 import { migrateAssignments, registerAssignments, assignedQuizOpen, assignmentBlock } from './assignments.js';
 import { migrateMath, syncMath, registerMath } from './math.js';
+import { migrateGroups, backfillMembers, registerGroups, setStudentGroups } from './groups.js';
 import { migrateReserved, registerReserved, scanReserved, scanSoon } from './reserved.js';
 import { registerProgress } from './progress.js';
 import { migrateMistakes, registerMistakes } from './mistakes.js';
@@ -102,6 +103,7 @@ const schemaDone = await db.one("SELECT value FROM settings WHERE key = '_schema
 const schemaOk = schemaDone?.value === schema && await db.one(`SELECT (to_regclass('public.site_visits') IS NOT NULL AND to_regclass('public.question_approvals') IS NOT NULL
     AND to_regclass('public.live_bookings') IS NOT NULL AND to_regclass('public.tg_logins') IS NOT NULL
     AND to_regclass('public.math_questions') IS NOT NULL AND to_regclass('public.assignment_grants') IS NOT NULL
+    AND to_regclass('public.group_members') IS NOT NULL AND to_regclass('public.group_attendance') IS NOT NULL
     AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'admin_perms')) AS ok`).then((r) => !!r?.ok).catch(() => false);
 if (!schemaOk) {
   await migrate();
@@ -143,6 +145,7 @@ if (!schemaOk) {
   `);
   await migrateGame();
   await migrateMath();
+  await migrateGroups();
   // after a database is copied, the id counters can stay behind the rows (new inserts then fail with "duplicate key"):
   // move every id counter past the highest id in its table
   try {
@@ -159,6 +162,7 @@ await syncMath().catch((e) => console.error('[math]', e.message));
 await initSecret();
 await seedSite();
 const seeded = await seed();
+if (seeded) await backfillMembers().catch(() => {});
 const fingerprint = contentHash();
 const synced = await db.one("SELECT value FROM settings WHERE key = '_content_hash'");
 if (seeded || synced?.value !== fingerprint) {
@@ -265,8 +269,9 @@ async function accessFor(user, settings) {
   };
 }
 async function mepayload(user) {
-  const group = user.group_id ? await db.one('SELECT id, name FROM groups WHERE id = ?', [user.group_id]) : null;
-  return { ...publicUser(user), group, access: await accessFor(user), usage: await usageOf(user) };
+  const groups = user.role === 'student' ? await db.all(`SELECT g.id, g.name FROM group_members gm JOIN groups g ON g.id = gm.group_id
+    WHERE gm.user_id = ? AND gm.left_at IS NULL AND NOT g.archived ORDER BY gm.joined_at`, [user.id]).catch(() => []) : [];
+  return { ...publicUser(user), group: groups[0] || null, groups, access: await accessFor(user), usage: await usageOf(user) };
 }
 
 // ---------- public ----------
@@ -413,7 +418,7 @@ app.get('/api/sat-dates', (req, res) => res.json(SAT_DATES));
 const WEEK_START = "date_trunc('week', now() AT TIME ZONE 'Asia/Tashkent') AT TIME ZONE 'Asia/Tashkent'";
 const shortName = (n) => { const w = String(n || '').trim().split(/\s+/); return w[0] + (w[1] ? ` ${w[1][0]}.` : ''); };
 /** Students ranked by points between `since` and `until` (SQL expressions). */
-async function boardRows(since, until, meId) {
+async function boardRows(since, until, meId, onlyIds = null) {
   const rng = (col) => `${col} >= ${since} AND ${col} < ${until}`;
   const rows = await db.all(`
     WITH pts AS (
@@ -426,8 +431,8 @@ async function boardRows(since, until, meId) {
     )
     SELECT u.id, u.name, u.avatar_url, COALESCE(SUM(pts.p), 0) AS points
     FROM users u LEFT JOIN pts ON pts.user_id = u.id
-    WHERE u.role = 'student' GROUP BY u.id HAVING COALESCE(SUM(pts.p), 0) > 0 OR u.id = ?
-    ORDER BY points DESC, u.id`, [meId || 0]);
+    WHERE u.role = 'student' ${onlyIds ? 'AND u.id = ANY(?::int[])' : ''} GROUP BY u.id HAVING COALESCE(SUM(pts.p), 0) > 0 OR u.id = ?
+    ORDER BY points DESC, u.id`, onlyIds ? [onlyIds, meId || 0] : [meId || 0]);
   return rows.map((r, i) => ({ rank: i + 1, id: r.id, name: shortName(r.name), avatar_url: r.avatar_url, points: Number(r.points), me: r.id === meId }));
 }
 const DEFAULT_PRIZES = [{ text: '30 000 so‘m to your wallet', bonus: 30000 }, { text: '20 000 so‘m to your wallet', bonus: 20000 }, { text: '10 000 so‘m to your wallet', bonus: 10000 }];
@@ -452,6 +457,8 @@ app.get('/api/leaderboard', h(async (req, res) => {
     last_week: { week: wk, winners: last.map((x, i) => ({ ...x, awarded: paid.has(`lb:${wk}:${i + 1}`) })) },
   });
 }));
+registerGroups(app, { h, bad, requireMaster, requireStudent, userAnalytics, boardRows, weekStart: WEEK_START });
+
 app.put('/api/leaderboard/prizes', requireMaster, h(async (req, res) => {
   const prizes = (Array.isArray(req.body?.prizes) ? req.body.prizes : []).slice(0, 3).map((p) => ({
     text: String(p?.text || '').trim().slice(0, 80), bonus: Math.max(0, Math.min(10_000_000, Math.round(+p?.bonus || 0))),
@@ -549,7 +556,7 @@ app.get('/api/health', requireMaster, h(async (req, res) => {
   const add = (name, ok, detail, fix) => checks.push({ name, ok, detail, fix: fix || null });
   const t = Date.now(); await db.one('SELECT 1 AS x'); const ping = Date.now() - t;
   add('Database', true, `Connected (${DB_KIND === 'postgres' ? dbHost.split('.').slice(1, 3).join('.') || 'postgres' : 'local'}), ${ping} ms`);
-  const need = ['users', 'settings', 'qbank_questions', 'qbank_answers', 'roadmap_items', 'balance_ledger', 'tg_requests', 'full_mock_attempts', 'live_bookings', 'site_visits', 'question_approvals', 'tg_logins', 'check_edits', 'usage_answers', 'math_questions', 'assignment_grants'];
+  const need = ['users', 'settings', 'qbank_questions', 'qbank_answers', 'roadmap_items', 'balance_ledger', 'tg_requests', 'full_mock_attempts', 'live_bookings', 'site_visits', 'question_approvals', 'tg_logins', 'check_edits', 'usage_answers', 'math_questions', 'assignment_grants', 'group_members', 'group_attendance'];
   const have = new Set((await db.all("SELECT table_name AS t FROM information_schema.tables WHERE table_schema = 'public'")).map((r) => r.t));
   const missing = need.filter((x) => !have.has(x));
   add('Tables', !missing.length, missing.length ? `Missing: ${missing.join(', ')}` : `${have.size} tables, all present`, missing.length ? 'migrate' : null);
@@ -620,39 +627,18 @@ app.put('/api/settings', requireMaster, h(async (req, res) => {
   res.json({ ...out, bunny_api_key: out.bunny_api_key ? `••••${out.bunny_api_key.slice(-4)}` : '', bunny_token_key: out.bunny_token_key ? `••••${out.bunny_token_key.slice(-4)}` : '', giphy_key: out.giphy_key ? `••••${out.giphy_key.slice(-4)}` : '' });
 }));
 
-// ---------- groups (teacher) ----------
-app.get('/api/groups', requireMaster, h(async (req, res) => {
-  res.json(await db.all(`SELECT g.*, (SELECT COUNT(*) FROM users u WHERE u.group_id = g.id) AS students,
-    (SELECT COUNT(*) FROM quiz_groups qg WHERE qg.group_id = g.id) AS quizzes FROM groups g ORDER BY g.name`));
-}));
-app.post('/api/groups', requireMaster, h(async (req, res) => {
-  const name = String(req.body?.name || '').trim();
-  if (!name) return bad(res, 'Group name is required');
-  if (await db.one('SELECT 1 AS x FROM groups WHERE name = ?', [name])) return bad(res, 'A group with this name already exists');
-  const r = await db.run('INSERT INTO groups (name) VALUES (?) RETURNING id', [name]);
-  res.json({ id: r.id, name });
-}));
-app.put('/api/groups/:id', requireMaster, h(async (req, res) => {
-  const name = String(req.body?.name || '').trim();
-  if (!name) return bad(res, 'Group name is required');
-  if (await db.one('SELECT 1 AS x FROM groups WHERE name = ? AND id <> ?', [name, req.params.id])) return bad(res, 'A group with this name already exists');
-  await db.run('UPDATE groups SET name = ? WHERE id = ?', [name, req.params.id]);
-  res.json({ ok: true });
-}));
-app.delete('/api/groups/:id', requireMaster, h(async (req, res) => {
-  await db.run('DELETE FROM groups WHERE id = ?', [req.params.id]);
-  res.json({ ok: true });
-}));
-
+// ---------- groups: see groups.js ----------
 // ---------- students (teacher) ----------
-const studentRow = `SELECT u.id, u.name, u.login, u.email, u.phone, u.provider, u.avatar_url, u.group_id, g.name AS group_name, u.target_english, u.target_math,
+const studentRow = `SELECT u.id, u.name, u.login, u.email, u.phone, u.provider, u.avatar_url, u.group_id, u.target_english, u.target_math,
+  ARRAY(SELECT gm.group_id FROM group_members gm WHERE gm.user_id = u.id AND gm.left_at IS NULL ORDER BY gm.joined_at) AS group_ids,
+  (SELECT string_agg(g2.name, ', ' ORDER BY gm.joined_at) FROM group_members gm JOIN groups g2 ON g2.id = gm.group_id WHERE gm.user_id = u.id AND gm.left_at IS NULL) AS group_name,
   u.exam_date, u.created_at, u.last_login_at, u.balance, u.diagnostic_score, u.cefr, u.admitted, u.placement_at, u.sub_until, u.sub_plan,
   (SELECT MAX(finished_at) FROM attempts a WHERE a.user_id = u.id) AS last_active,
   (SELECT COUNT(*) FROM attempts a WHERE a.user_id = u.id AND a.finished_at IS NOT NULL) AS attempts,
   (SELECT COALESCE(SUM(seconds), 0) FROM user_activity x WHERE x.user_id = u.id AND x.day > CURRENT_DATE - 7) AS week_seconds,
   (SELECT MAX(day) FROM user_activity x WHERE x.user_id = u.id) AS last_seen_day
-  FROM users u LEFT JOIN groups g ON g.id = u.group_id WHERE u.role = 'student'`;
-const withSub = (s) => ({ ...s, sub_active: subActive(s) });
+  FROM users u WHERE u.role = 'student'`;
+const withSub = (s) => ({ ...s, group_ids: (s.group_ids || []).map(Number), sub_active: subActive(s) });
 app.get('/api/students', requireMaster, h(async (req, res) => {
   const rows = await db.all(studentRow + ' ORDER BY u.created_at DESC, u.id DESC');
   const out = await Promise.all(rows.map(async (s) => {
@@ -688,7 +674,7 @@ async function buildReport(id) {
     db.all(`SELECT id, score, total, estimate, finished_at, filters FROM practice_sessions WHERE user_id = ? AND finished_at IS NOT NULL ORDER BY finished_at DESC LIMIT 30`, [id]).catch(() => []),
     db.all(`SELECT to_char(last_at, 'YYYY-MM-DD') AS day, COUNT(*) AS n FROM vocab_progress WHERE user_id = ? AND last_at > now() - interval '28 days' GROUP BY 1 ORDER BY 1`, [id]),
     db.all(`SELECT to_char(day, 'YYYY-MM-DD') AS day, section, seconds FROM user_activity WHERE user_id = ? AND day > CURRENT_DATE - 56 ORDER BY day`, [id]),
-    db.one(`SELECT COUNT(*) AS n FROM quizzes q WHERE q.is_public OR EXISTS (SELECT 1 FROM quiz_groups qg JOIN users u ON u.group_id = qg.group_id WHERE qg.quiz_id = q.id AND u.id = ?)`, [id]).catch(() => ({ n: 0 })),
+    db.one(`SELECT COUNT(*) AS n FROM quizzes q WHERE q.is_public OR EXISTS (SELECT 1 FROM quiz_groups qg JOIN group_members gm ON gm.group_id = qg.group_id AND gm.left_at IS NULL WHERE qg.quiz_id = q.id AND gm.user_id = ?)`, [id]).catch(() => ({ n: 0 })),
     db.all(`SELECT q.domain, q.skill, COUNT(*) AS n, SUM(CASE WHEN a.correct THEN 1 ELSE 0 END) AS ok
       FROM qbank_answers a JOIN qbank_questions q ON q.id = a.question_id WHERE a.user_id = ? GROUP BY q.domain, q.skill ORDER BY q.domain, q.skill`, [id]),
     db.one('SELECT COUNT(*) AS n, SUM(CASE WHEN correct THEN 1 ELSE 0 END) AS ok, MAX(answered_at) AS last FROM qbank_answers WHERE user_id = ?', [id]),
@@ -747,8 +733,10 @@ app.post('/api/students', requireMaster, h(async (req, res) => {
   const lg = String(login || '').trim().toLowerCase() || (await uniqueLogin(nm));
   if (await db.one('SELECT 1 AS x FROM users WHERE login = ? OR email = ?', [lg, lg])) return bad(res, 'This login is already taken');
   const pw = String(password || '').trim() || genPassword();
-  const r = await db.run("INSERT INTO users (name, login, password_hash, role, provider, group_id) VALUES (?,?,?,'student','teacher',?) RETURNING id",
-    [nm, lg, bcrypt.hashSync(pw, 12), group_id || null]);
+  const r = await db.run("INSERT INTO users (name, login, password_hash, role, provider) VALUES (?,?,?,'student','teacher') RETURNING id",
+    [nm, lg, bcrypt.hashSync(pw, 12)]);
+  const gids = Array.isArray(req.body?.group_ids) ? req.body.group_ids : group_id ? [group_id] : [];
+  if (gids.length) await setStudentGroups(req.user, r.id, gids);
   res.json({ id: r.id, name: nm, login: lg, password: pw });
 }));
 app.put('/api/students/:id', requireMaster, h(async (req, res) => {
@@ -756,10 +744,13 @@ app.put('/api/students/:id', requireMaster, h(async (req, res) => {
   if (!s) return bad(res, 'Not found', 404);
   const { name, group_id, target_english, target_math, exam_date } = req.body || {};
   if (exam_date && exam_date !== s.exam_date && !isSatDate(exam_date)) return bad(res, 'Choose one of the official SAT test dates.');
-  await db.run('UPDATE users SET name = ?, group_id = ?, target_english = ?, target_math = ?, exam_date = ? WHERE id = ?', [
-    String(name || s.name).trim(), group_id || null,
+  await db.run('UPDATE users SET name = ?, target_english = ?, target_math = ?, exam_date = ? WHERE id = ?', [
+    String(name || s.name).trim(),
     target_english ?? s.target_english, target_math ?? s.target_math, exam_date ?? s.exam_date, s.id,
   ]);
+  // groups: a list sets them exactly; the old single group_id still works
+  if (Array.isArray(req.body?.group_ids)) await setStudentGroups(req.user, s.id, req.body.group_ids);
+  else if ('group_id' in (req.body || {})) await setStudentGroups(req.user, s.id, group_id ? [group_id] : []);
   res.json({ ok: true });
 }));
 app.post('/api/students/:id/reset-password', requireMaster, h(async (req, res) => {
@@ -851,12 +842,12 @@ app.post('/api/quizzes/parse', requireMaster, upload.single('file'), h(async (re
 
 // Quizzes page: public, diagnostic and group quizzes — never roadmap quizzes (those are assignments that open step by step)
 const VISIBLE = `((q.is_public OR q.kind = 'diagnostic'
-  OR q.id IN (SELECT quiz_id FROM quiz_groups WHERE group_id = ?))
+  OR q.id IN (SELECT qg.quiz_id FROM quiz_groups qg JOIN group_members gm ON gm.group_id = qg.group_id AND gm.left_at IS NULL WHERE gm.user_id = ?))
   AND q.id NOT IN (SELECT ri.quiz_id FROM roadmap_items ri JOIN roadmap_steps rs ON rs.id = ri.step_id WHERE ri.quiz_id IS NOT NULL AND rs.deleted_at IS NULL)
   AND q.id NOT IN (SELECT ri.retake_quiz_id FROM roadmap_items ri JOIN roadmap_steps rs ON rs.id = ri.step_id WHERE ri.retake_quiz_id IS NOT NULL AND rs.deleted_at IS NULL))`;
 async function canAccess(user, quizId) {
   if (user.role === 'master') return true;
-  if (await db.one(`SELECT 1 AS x FROM quizzes q WHERE q.id = ? AND ${VISIBLE}`, [quizId, user.group_id ?? -1])) return true;
+  if (await db.one(`SELECT 1 AS x FROM quizzes q WHERE q.id = ? AND ${VISIBLE}`, [quizId, user.id])) return true;
   return assignedQuizOpen(user, quizId, roadmapFor); // unlocked roadmap step, or assigned by the teacher
 }
 
@@ -872,7 +863,7 @@ async function quizList(user) {
       roadmap: (await db.one('SELECT COUNT(*) AS c FROM roadmap_items WHERE quiz_id = ?', [q.id])).c > 0,
     })));
   }
-  const rows = await db.all(base + ` WHERE ${VISIBLE} ORDER BY (q.kind = 'diagnostic') DESC, q.created_at DESC, q.id DESC`, [user.group_id ?? -1]);
+  const rows = await db.all(base + ` WHERE ${VISIBLE} ORDER BY (q.kind = 'diagnostic') DESC, q.created_at DESC, q.id DESC`, [user.id]);
   return Promise.all(rows.map(async (q) => {
     const fin = await db.all('SELECT id, score, total, finished_at FROM attempts WHERE user_id = ? AND quiz_id = ? AND finished_at IS NOT NULL ORDER BY finished_at DESC', [user.id, q.id]);
     const open = await db.one('SELECT id FROM attempts WHERE user_id = ? AND quiz_id = ? AND finished_at IS NULL', [user.id, q.id]);

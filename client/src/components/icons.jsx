@@ -1,6 +1,6 @@
 // Icons: Phosphor (https://phosphoricons.com), wrapped so the app keeps one naming scheme.
 // <IconX width={18} /> sets the size; pass weight="duotone" | "bold" | "fill" where a heavier mark fits.
-import { House, Gif, Wallet, ClipboardText, MapTrifold, ChatsCircle, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowsClockwise, BookOpenText, BookmarkSimple, Briefcase, Cards, CaretDown, ChartLineUp, Check, Clock, Copy, Crown, DotsThree, DownloadSimple, Eye, EyeSlash, FileText, Fire, Flag, GameController, GearSix, Globe, InstagramLogo, Key, Lightning, Link, List, ListChecks, Lock, MagnifyingGlass, Medal, Moon, PaperPlaneRight, Path, PencilSimple, Play, Plus, Printer, Prohibit, SignOut, SpeakerHigh, SpeakerSlash, SquaresFour, Stack, Sun, Target, TelegramLogo, Trophy, Calculator, CalendarCheck, MathOperations, Function as PhFunction, Ruler, VideoCamera, Trash, UploadSimple, User, UsersThree, X } from '@phosphor-icons/react';
+import { House, Gif, Wallet, ClipboardText, MapTrifold, ChatsCircle, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowsClockwise, BookOpenText, BookmarkSimple, Briefcase, Cards, CaretDown, ChartLineUp, Check, Clock, Copy, Crown, DotsThree, DownloadSimple, Eye, EyeSlash, FileText, Fire, Flag, GameController, GearSix, Globe, InstagramLogo, Key, Lightning, Link, List, ListChecks, Lock, MagnifyingGlass, Medal, Moon, PaperPlaneRight, Path, PencilSimple, Play, Plus, Printer, Prohibit, SignOut, SpeakerHigh, SpeakerSlash, SquaresFour, Stack, Sun, Target, TelegramLogo, Trophy, Calculator, CalendarCheck, CalendarBlank, Archive, ClockCounterClockwise, ArrowsLeftRight, UserPlus, MathOperations, Function as PhFunction, Ruler, VideoCamera, Trash, UploadSimple, User, UsersThree, X } from '@phosphor-icons/react';
 
 const ph = (C, base = 'regular') => function Icon({ width, height, size, weight, strokeWidth, ...rest }) {
   return <C size={size || width || height || 20} weight={weight || base} aria-hidden="true" {...rest} />;
@@ -104,3 +104,8 @@ export function AppIcon({ size = 40 }) {
 export const IconMath = ph(MathOperations);
 export const IconFunction = ph(PhFunction);
 export const IconRuler = ph(Ruler);
+export const IconCalendar = ph(CalendarBlank);
+export const IconArchive = ph(Archive);
+export const IconHistory = ph(ClockCounterClockwise);
+export const IconMove = ph(ArrowsLeftRight);
+export const IconUserPlus = ph(UserPlus);

@@ -13,11 +13,13 @@ const L = ['A', 'B', 'C', 'D'];
 
 export function registerProgress(app, { h, bad, requireMaster, roadmapFor, userAnalytics }) {
   app.get('/api/progress', requireMaster, h(async (req, res) => {
-    const students = await db.all(`SELECT u.id, u.name, u.group_id, g.name AS group_name,
+    const students = await db.all(`SELECT u.id, u.name, u.group_id,
+        ARRAY(SELECT gm.group_id FROM group_members gm WHERE gm.user_id = u.id AND gm.left_at IS NULL) AS group_ids,
+        (SELECT string_agg(g.name, ', ' ORDER BY g.name) FROM group_members gm JOIN groups g ON g.id = gm.group_id WHERE gm.user_id = u.id AND gm.left_at IS NULL) AS group_name,
         (SELECT MAX(day) FROM user_activity a WHERE a.user_id = u.id) AS last_day,
         (SELECT COALESCE(SUM(seconds), 0) FROM user_activity a WHERE a.user_id = u.id AND a.day > CURRENT_DATE - 7) AS week_seconds,
         u.created_at
-      FROM users u LEFT JOIN groups g ON g.id = u.group_id WHERE u.role = 'student' ORDER BY u.name`);
+      FROM users u WHERE u.role = 'student' ORDER BY u.name`);
     const funnel = new Map(); // step id → { title, index, reached, passed, stuck: [] }
     const rows = [];
     const weekAgo = Date.now() - 7 * 86400e3;
@@ -35,7 +37,7 @@ export function registerProgress(app, { h, bad, requireMaster, roadmapFor, userA
       const quiz = await db.one('SELECT ROUND(AVG(100.0 * score / NULLIF(total, 0))) AS avg, COUNT(*) AS n FROM attempts WHERE user_id = ? AND finished_at IS NOT NULL', [s.id]);
       const checks = await db.one('SELECT COUNT(*) AS n, SUM(CASE WHEN passed THEN 1 ELSE 0 END) AS passed FROM lesson_checks WHERE user_id = ? AND finished_at IS NOT NULL', [s.id]);
       const vocab = await db.one('SELECT ROUND(AVG(100.0 * score / NULLIF(total, 0))) AS avg FROM vocab_tests WHERE user_id = ?', [s.id]).catch(() => ({ avg: null }));
-      rows.push({ id: s.id, name: s.name, group: s.group_name || '', step: cur ? `${steps.indexOf(cur) + 1}. ${cur.title}` : steps.length && steps.every((x) => x.status === 'done') ? 'Finished' : '—',
+      rows.push({ id: s.id, name: s.name, group: s.group_name || '', group_ids: (s.group_ids || []).map(Number), step: cur ? `${steps.indexOf(cur) + 1}. ${cur.title}` : steps.length && steps.every((x) => x.status === 'done') ? 'Finished' : '—',
         steps_done: steps.filter((x) => x.status === 'done').length, steps_total: steps.length,
         checks: Number(checks?.n || 0), checks_passed: Number(checks?.passed || 0), quiz_avg: quiz?.avg == null ? null : Number(quiz.avg), quizzes: Number(quiz?.n || 0),
         vocab_avg: vocab?.avg == null ? null : Number(vocab.avg), week_min: Math.round(Number(s.week_seconds || 0) / 60), last_day: s.last_day, estimate: estimate ?? null, idle });
@@ -47,9 +49,10 @@ export function registerProgress(app, { h, bad, requireMaster, roadmapFor, userA
       WHERE c.finished_at IS NOT NULL AND NOT c.passed
         AND NOT EXISTS (SELECT 1 FROM lesson_checks p WHERE p.user_id = c.user_id AND p.item_id = c.item_id AND p.passed)
       GROUP BY c.user_id, u.name, c.item_id, i.title, st.title HAVING COUNT(*) >= 3 ORDER BY MAX(c.finished_at) DESC LIMIT 200`);
-    const groups = await db.all(`SELECT g.id, g.name, COUNT(u.id) AS students FROM groups g LEFT JOIN users u ON u.group_id = g.id AND u.role = 'student' GROUP BY g.id, g.name ORDER BY g.name`);
+    const groups = await db.all(`SELECT g.id, g.name, COUNT(gm.id) AS students FROM groups g LEFT JOIN group_members gm ON gm.group_id = g.id AND gm.left_at IS NULL
+      WHERE NOT g.archived GROUP BY g.id, g.name ORDER BY g.name`);
     const byGroup = groups.map((g) => {
-      const r = rows.filter((x) => x.group === g.name);
+      const r = rows.filter((x) => x.group_ids.includes(g.id));
       const avg = (k) => { const v = r.map((x) => x[k]).filter((x) => x != null); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null; };
       return { id: g.id, name: g.name, students: Number(g.students), steps_done: avg('steps_done'), quiz_avg: avg('quiz_avg'), estimate: avg('estimate'), week_min: avg('week_min') };
     });

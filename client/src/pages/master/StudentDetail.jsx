@@ -103,14 +103,22 @@ export default function StudentDetail() {
 }
 
 function EditStudent({ s, groups, onClose, onSaved }) {
-  const [f, setF] = useState({ name: s.name, group_id: s.group_id || '', target_english: s.target_english, target_math: s.target_math, exam_date: s.exam_date || '' });
+  const [f, setF] = useState({ name: s.name, group_ids: s.group_ids || [], target_english: s.target_english, target_math: s.target_math, exam_date: s.exam_date || '' });
   const [err, setErr] = useState('');
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   return (
     <Modal title={"Edit student"} onClose={onClose}
       footer={<><button className="btn ghost" onClick={onClose}>{"Cancel"}</button><button className="btn primary" onClick={async () => { try { await api.put('/students/' + s.id, f); onSaved(); } catch (e) { setErr(e.message); } }}>{"Save"}</button></>}>
       <Field label={"Name"}><input value={f.name} onChange={set('name')} /></Field>
-      <Field label={"Group"}><select value={f.group_id} onChange={set('group_id')}><option value="">{"No group"}</option>{groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select></Field>
+      <Field label="Groups" hint="a student can be in several">
+        <div className="mh-chips">
+          {groups.filter((g) => !g.archived || f.group_ids.includes(g.id)).map((g) => (
+            <button type="button" key={g.id} className={`mh-chip ${f.group_ids.includes(g.id) ? 'on' : ''}`}
+              onClick={() => setF({ ...f, group_ids: f.group_ids.includes(g.id) ? f.group_ids.filter((x) => x !== g.id) : [...f.group_ids, g.id] })}>{g.name}</button>
+          ))}
+          {!groups.length && <small className="muted">No groups yet.</small>}
+        </div>
+      </Field>
       <div className="form-grid">
         <Field label={"Goal R&W"}><input type="number" min="200" max="800" step="10" value={f.target_english} onChange={set('target_english')} /></Field>
         <Field label={"Goal Math"}><input type="number" min="200" max="800" step="10" value={f.target_math} onChange={set('target_math')} /></Field>

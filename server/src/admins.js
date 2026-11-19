@@ -43,7 +43,7 @@ export function sectionOf(method, path) {
   if (/^\/telegram(\/|$)/.test(p) && !/^\/telegram\/(webhook|link)/.test(p)) return 'settings';
   if (/^\/(plans|tiers)(\/|$)/.test(p) && write) return 'settings';
   if (/^\/(support|tg-support|asks?)(\/|$)/.test(p)) return 'support';
-  if (/^\/(students|groups|progress|assignments|consultations|placement|leaderboard|live)(\/|$)/.test(p)) return 'students';
+  if (/^\/(students|groups|groups-students|progress|assignments|consultations|placement|leaderboard|live)(\/|$)/.test(p)) return 'students';
   if (/^\/(roadmap|lessons|lesson-checks|qbank|full-mocks|quizzes|questions|vocab|site|website|quality|review|question-reports|videos|videos-config|gifs|reserved|pictures|game|math)(\/|$)/.test(p)) return write ? 'content' : null;
   return null;
 }

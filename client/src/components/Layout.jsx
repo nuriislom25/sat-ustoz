@@ -15,6 +15,7 @@ const STUDENT_NAV = [
   { to: '/roadmap', label: 'Roadmap', icon: IconRoad, c: '#F28B4E' },
   { to: '/math', label: 'Math', icon: IconMath, c: '#0E9F6E' },
   { to: '/assignments', label: 'Assignments', icon: IconTask, c: '#0E9F6E' },
+  { to: '/my-group', label: 'My group', icon: IconLayers, c: '#12A39A', needsGroup: true },
   { to: '/vocab', label: 'Word Vault', icon: IconBook, c: '#E8A93C' },
   { to: '/game', label: 'Word Arena', icon: IconGame, c: '#8E5CF7' },
   { to: '/practice', label: 'Practice', icon: IconBolt, c: '#E2553D', also: ['/question-bank'] },
@@ -98,7 +99,7 @@ export default function Layout() {
   }, [user.role]);
   const on = (n) => !!n.also?.some((pfx) => loc.pathname.startsWith(pfx));
   useEffect(() => { setOpen(false); window.scrollTo({ top: 0 }); }, [loc.pathname]);
-  const nav = user.role === 'master' ? MASTER_NAV.filter((n) => canSee(user, n.to)) : STUDENT_NAV;
+  const nav = user.role === 'master' ? MASTER_NAV.filter((n) => canSee(user, n.to)) : STUDENT_NAV.filter((n) => !n.needsGroup || user.groups?.length);
   // open assignments (new / in progress / retake) as a badge in the menu
   const [todo, setTodo] = useState(0);
   useEffect(() => { if (user.role === 'student') api.get('/assignments').then((d) => setTodo(d.open || 0)).catch(() => {}); }, [user.role, loc.pathname]);

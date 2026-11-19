@@ -28,7 +28,7 @@ export default function Students() {
       <Gate state={st}>{([students, groups]) => {
         const week = Date.now() - 7 * 86400e3;
         const FILTERS = { all: () => true, subscribed: (s) => s.sub_active, free: (s) => !s.sub_active, new: (s) => new Date(s.created_at) > week };
-        const shown = students.filter((s) => FILTERS[filter](s) && (!gid || String(s.group_id) === gid) && (!q || (s.name + s.login + (s.email || '') + (s.phone || '')).toLowerCase().includes(q.toLowerCase())));
+        const shown = students.filter((s) => FILTERS[filter](s) && (!gid || (s.group_ids || []).map(String).includes(gid)) && (!q || (s.name + s.login + (s.email || '') + (s.phone || '')).toLowerCase().includes(q.toLowerCase())));
         return (
           <>
             <Segmented value={filter} onChange={setFilter} options={[
@@ -52,7 +52,7 @@ export default function Students() {
                       {shown.map((s) => (
                         <tr key={s.id} className="click" onClick={() => nav(`/students/${s.id}`)}>
                           <td><div className="row"><Avatar name={s.name} src={s.avatar_url} /><div style={{ minWidth: 0 }}><b>{s.name}</b>
-                            <div className="muted row" style={{ fontSize: '.78rem', gap: 6 }}>{s.provider === 'google' && <IconGoogle width={12} height={12} />}{s.email || '@' + s.login}{s.group_name && <span className="chip primary" style={{ padding: '0 8px' }}>{s.group_name}</span>}</div></div></div></td>
+                            <div className="muted row" style={{ fontSize: '.78rem', gap: 6 }}>{s.provider === 'google' && <IconGoogle width={12} height={12} />}{s.email || '@' + s.login}</div>{s.group_name && <div className="row wrap" style={{ gap: 4, marginTop: 3 }}>{s.group_name.split(', ').map((n) => <span key={n} className="chip primary" style={{ padding: '0 8px', whiteSpace: 'nowrap', fontSize: '.72rem' }}>{n}</span>)}</div>}</div></div></td>
                           <td onClick={(e) => e.stopPropagation()}>
                             {s.sub_active
                               ? <button className="chip good chip-btn" style={{ borderColor: 'transparent' }} onClick={() => setSub(s)} title="Extend or cancel">Until {fmtDate(s.sub_until, { day: 'numeric', month: 'short' })}</button>
@@ -143,7 +143,7 @@ function AddStudents({ groups, defaultGroup, onClose, onDone }) {
       ) : (
         <Field label={"Names (one per line)"}><textarea rows={6} value={bulk} onChange={(e) => setBulk(e.target.value)} placeholder={'Ali Valiyev\nSevara Karimova'} /></Field>
       )}
-      <Field label={"Group"}><select value={f.group_id} onChange={(e) => setF({ ...f, group_id: e.target.value })}><option value="">{"No group"}</option>{groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select></Field>
+      <Field label={"Group"}><select value={f.group_id} onChange={(e) => setF({ ...f, group_id: e.target.value })}><option value="">{"No group"}</option>{groups.filter((g) => !g.archived).map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select></Field>
       {err && <div className="error-box">{err}</div>}
     </Modal>
   );

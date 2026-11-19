@@ -44,6 +44,8 @@ const Result = page(() => import('./pages/quiz/Result.jsx'));
 const Students = page(() => import('./pages/master/Students.jsx'));
 const StudentDetail = page(() => import('./pages/master/StudentDetail.jsx'));
 const Groups = page(() => import('./pages/master/Groups.jsx'));
+const GroupDetail = page(() => import('./pages/master/GroupDetail.jsx'));
+const MyGroups = page(() => import('./pages/student/MyGroups.jsx'));
 const QuizManager = page(() => import('./pages/master/QuizManager.jsx'));
 const QuizEditor = page(() => import('./pages/master/QuizEditor.jsx'));
 const RoadmapEditor = page(() => import('./pages/master/RoadmapEditor.jsx'));
@@ -141,12 +143,14 @@ export default function App() {
         <Route path="game" element={<GameHub />} />
         <Route path="math" element={<MathHome />} />
         {user.role === 'student' && <Route path="math/learn/:id" element={<MathLesson />} />}
+        {user.role === 'student' && <Route path="my-group" element={<MyGroups />} />}
         {user.role === 'master' ? (
           <>
             <Route index element={<Overview />} />
             <Route path="students" element={<Students />} />
             <Route path="students/:id" element={<StudentDetail />} />
             <Route path="groups" element={<Groups />} />
+            <Route path="groups/:id" element={<GroupDetail />} />
             <Route path="quizzes" element={<QuizManager />} />
             <Route path="quizzes/new" element={<QuizEditor />} />
             <Route path="quizzes/:id/edit" element={<QuizEditor />} />

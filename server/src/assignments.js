@@ -52,7 +52,9 @@ const grantsFor = async (userId, ids) => (ids.length ? new Map((await db.all('SE
 
 /** Teacher assignments that apply to this user (directly or through the group). */
 const teacherRows = (user) => db.all(`SELECT a.*, q.title, q.duration_min, (SELECT COUNT(*) FROM questions x WHERE x.quiz_id = q.id) AS questions
-  FROM assignments a JOIN quizzes q ON q.id = a.quiz_id WHERE a.user_id = ? OR (a.group_id IS NOT NULL AND a.group_id = ?) ORDER BY a.created_at DESC`, [user.id, user.group_id ?? -1]);
+  FROM assignments a JOIN quizzes q ON q.id = a.quiz_id WHERE a.user_id = ? OR (a.group_id IS NOT NULL AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = a.group_id AND gm.user_id = ?
+    -- a student who left the group keeps the tasks given while they were in it; a new member gets the group's tasks too
+    AND (gm.left_at IS NULL OR a.created_at < gm.left_at))) ORDER BY a.created_at DESC`, [user.id, user.id]);
 
 /** Every assignment for one student. `roadmapFor` comes from index.js (step locking lives there). */
 export async function assignmentsFor(user, roadmapFor) {
@@ -143,7 +145,8 @@ export function registerAssignments(app, { h, bad, requireMaster, requireStudent
       ORDER BY a.created_at DESC LIMIT 300`);
     const out = [];
     for (const a of rows) {
-      const students = a.user_id ? [{ id: a.user_id, name: a.user_name }] : await db.all("SELECT id, name FROM users WHERE role = 'student' AND group_id = ? ORDER BY name", [a.group_id]);
+      const students = a.user_id ? [{ id: a.user_id, name: a.user_name }] : await db.all(`SELECT DISTINCT u.id, u.name FROM group_members gm JOIN users u ON u.id = gm.user_id
+        WHERE gm.group_id = ? AND u.role = 'student' AND (gm.left_at IS NULL OR gm.left_at > ?) ORDER BY u.name`, [a.group_id, a.created_at]);
       let passed = 0; let started = 0;
       const per = [];
       const g = new Map((await db.all('SELECT user_id, extra FROM assignment_grants WHERE assignment_id = ?', [a.id])).map((x) => [x.user_id, x.extra]));
@@ -178,7 +181,7 @@ export function registerAssignments(app, { h, bad, requireMaster, requireStudent
       for (const u of userIds) made.push((await t.one('INSERT INTO assignments (quiz_id, user_id, due_at, attempts_allowed, pass_pct, note, close_at_due, created_by) VALUES (?,?,?,?,?,?,?,?) RETURNING id', [quiz.id, u, due, allowed, pass, note, closeAt, req.user.id])).id);
     });
     // Telegram for students who linked the bot
-    const targets = groupId ? (await db.all("SELECT id FROM users WHERE role = 'student' AND group_id = ?", [groupId])).map((r) => r.id) : userIds;
+    const targets = groupId ? (await db.all('SELECT user_id AS id FROM group_members WHERE group_id = ? AND left_at IS NULL', [groupId])).map((r) => r.id) : userIds;
     const when = due ? ` · due ${new Date(due).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Asia/Tashkent' })}` : '';
     for (const id of targets.slice(0, 200)) notifyUser(id, `📝 New assignment: <b>${quiz.title.replace(/[<>&]/g, '')}</b>${when}\nOpen ustozsat.uz → Assignments`);
     res.json({ ids: made });
