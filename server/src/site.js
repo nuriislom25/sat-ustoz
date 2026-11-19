@@ -15,6 +15,7 @@ import jwt from 'jsonwebtoken';
 import { db } from './db.js';
 import { DOMAINS } from './qbank.js';
 import { subActive } from './auth.js';
+import { registerPractice } from './practice.js';
 
 export async function migrateSite() {
   await db.exec(`
@@ -49,6 +50,11 @@ CREATE INDEX IF NOT EXISTS idx_practice_user ON practice_sessions(user_id, start
 ALTER TABLE practice_sessions ADD COLUMN IF NOT EXISTS ip TEXT;
 ALTER TABLE practice_sessions ADD COLUMN IF NOT EXISTS estimate INTEGER;
 CREATE INDEX IF NOT EXISTS idx_practice_ip ON practice_sessions(ip, started_at);
+ALTER TABLE practice_sessions ADD COLUMN IF NOT EXISTS subject TEXT NOT NULL DEFAULT 'english';
+ALTER TABLE practice_sessions ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'topic';
+ALTER TABLE practice_sessions ADD COLUMN IF NOT EXISTS module INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE practice_sessions ADD COLUMN IF NOT EXISTS parent_id TEXT;
+ALTER TABLE practice_sessions ADD COLUMN IF NOT EXISTS route TEXT;
 ALTER TABLE site_blocks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE site_pages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE practice_sessions ENABLE ROW LEVEL SECURITY;
@@ -152,11 +158,11 @@ export async function seedSite() {
 
 // ---------- practice tests ----------
 const LETTERS = 4;
-const pubQ = (q) => ({ id: q.id, domain: q.domain, skill_id: q.skill_id, skill: q.skill, difficulty: q.difficulty, passage: q.passage, table: parse(q.data_table, null), prompt: q.prompt, options: parse(q.options, []) });
-const cleanSeed = (s) => String(s || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 32) || 'x';
+export const pubQ = (q) => ({ id: q.id, domain: q.domain, skill_id: q.skill_id, skill: q.skill, difficulty: q.difficulty, passage: q.passage, table: parse(q.data_table, null), prompt: q.prompt, options: parse(q.options, []) });
+export const cleanSeed = (s) => String(s || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 32) || 'x';
 
 /** The visible pool for one visit: a stable random part (pool_percent %) of the active bank. */
-async function poolIds(seed, cfg) {
+export async function poolIds(seed, cfg) {
   const total = Number((await db.one('SELECT COUNT(*) AS n FROM qbank_questions WHERE active AND NOT premium AND reserved_for IS NULL')).n);
   const size = Math.max(Math.min(total, cfg.test_size), Math.ceil((total * Math.min(100, Math.max(10, cfg.pool_percent))) / 100));
   const rows = await db.all('SELECT id FROM qbank_questions WHERE active AND NOT premium AND reserved_for IS NULL ORDER BY md5(id || ?) LIMIT ?', [seed, size]);
@@ -177,8 +183,8 @@ function optionalUser(SECRET) {
  * (rolling window). Subscribers and the teacher are unlimited. Accounts are counted per account (students in one
  * classroom share an IP), guests by a hashed IP.
  */
-const ipKey = (req) => crypto.createHash('sha256').update(String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim() + ':sat-ustoz').digest('hex').slice(0, 24);
-async function quota(req, u, cfg) {
+export const ipKey = (req) => crypto.createHash('sha256').update(String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim() + ':sat-ustoz').digest('hex').slice(0, 24);
+export async function quota(req, u, cfg) {
   const limit = Number(cfg.daily_limit) || 0;
   let unlimited = limit <= 0;
   if (u && !unlimited) {
@@ -193,7 +199,7 @@ async function quota(req, u, cfg) {
   const resets_at = r.first ? new Date(new Date(r.first).getTime() + 24 * 3600e3).toISOString() : null;
   return { unlimited: false, limit, used, left: Math.max(0, limit - used), resets_at };
 }
-const pubQuota = (q) => ({ unlimited: q.unlimited, limit: q.limit, used: q.used, left: q.unlimited ? null : q.left, resets_at: q.resets_at || null });
+export const pubQuota = (q) => ({ unlimited: q.unlimited, limit: q.limit, used: q.used, left: q.unlimited ? null : q.left, resets_at: q.resets_at || null });
 
 export function registerSitePublic(app, { h, bad, secret }) {
   const who = optionalUser(secret);
@@ -214,72 +220,7 @@ export function registerSitePublic(app, { h, bad, secret }) {
     res.json(p);
   }));
 
-  // what this visit can practise: domains → skills with counts inside the visible pool
-  app.get('/api/public/practice', h(async (req, res) => {
-    const cfg = await getBlock('practice');
-    const seed = cleanSeed(req.query.seed);
-    const { ids, total } = await poolIds(seed, cfg);
-    const rows = ids.length ? await db.all('SELECT skill_id, difficulty, COUNT(*) AS n FROM qbank_questions WHERE id = ANY(?::text[]) GROUP BY skill_id, difficulty', [ids]) : [];
-    const domains = DOMAINS.map((d) => ({
-      domain: d.domain,
-      skills: d.skills.map(([id, name]) => {
-        const per = Object.fromEntries(['easy', 'medium', 'hard'].map((l) => [l, Number(rows.find((r) => r.skill_id === id && r.difficulty === l)?.n || 0)]));
-        return { id, name, per, n: per.easy + per.medium + per.hard };
-      }),
-    }));
-    const u = who(req);
-    const recent = u ? await db.all('SELECT id, score, total, finished_at FROM practice_sessions WHERE user_id = ? AND finished_at IS NOT NULL ORDER BY finished_at DESC LIMIT 5', [u.id]) : [];
-    res.json({ seed, visible: ids.length, total, percent: cfg.pool_percent, test_size: cfg.test_size, minutes: cfg.minutes, domains, recent, quota: pubQuota(await quota(req, u, cfg)), signed_in: !!u });
-  }));
-
-  // start a test: up to test_size random questions from this visit's pool, after filters
-  app.post('/api/public/practice/start', h(async (req, res) => {
-    const cfg = await getBlock('practice');
-    const seed = cleanSeed(req.body?.seed);
-    const { ids } = await poolIds(seed, cfg);
-    const skills = (Array.isArray(req.body?.skills) ? req.body.skills : []).map(String).slice(0, 20);
-    const levels = (Array.isArray(req.body?.levels) ? req.body.levels : []).filter((l) => ['easy', 'medium', 'hard'].includes(l));
-    const u = who(req);
-    const q = await quota(req, u, cfg);
-    const size = q.unlimited ? cfg.test_size : Math.min(cfg.test_size, q.left);
-    if (size < 3) return bad(res, 'You have used today’s free questions. The limit resets 24 hours after your first test — or get unlimited practice with a subscription.', 429, { code: 'daily_limit', quota: pubQuota(q) });
-    const rows = await db.all(`SELECT * FROM qbank_questions WHERE active AND NOT premium AND reserved_for IS NULL AND id = ANY(?::text[])
-      ${skills.length ? 'AND skill_id = ANY(?::text[])' : ''} ${levels.length ? 'AND difficulty = ANY(?::text[])' : ''}
-      ORDER BY random() LIMIT ?`, [ids, ...(skills.length ? [skills] : []), ...(levels.length ? [levels] : []), size]);
-    if (rows.length < 3) return bad(res, 'Not enough questions for these filters today — choose more skills or levels.');
-    // SAT order: by domain the way the real module goes
-    const order = new Map(DOMAINS.map((d, i) => [d.domain, i]));
-    rows.sort((a, b) => (order.get(a.domain) ?? 9) - (order.get(b.domain) ?? 9));
-    const id = crypto.randomBytes(9).toString('base64url');
-    await db.run('INSERT INTO practice_sessions (id, user_id, question_ids, filters, total, ip) VALUES (?,?,?,?,?,?)',
-      [id, u?.id || null, JSON.stringify(rows.map((r) => r.id)), JSON.stringify({ skills, levels }), rows.length, ipKey(req)]);
-    res.json({ id, minutes: Math.max(5, Math.round((cfg.minutes * rows.length) / cfg.test_size)), questions: rows.map(pubQ),
-      quota: q.unlimited ? pubQuota(q) : pubQuota({ ...q, used: q.used + rows.length, left: q.left - rows.length }) });
-  }));
-
-  // finish: answers → score, estimate, per-skill result and the full review
-  app.post('/api/public/practice/:id/submit', h(async (req, res) => {
-    const s = await db.one('SELECT * FROM practice_sessions WHERE id = ?', [req.params.id]);
-    if (!s) return bad(res, 'Test not found', 404);
-    const ids = parse(s.question_ids, []);
-    const qs = await db.all('SELECT * FROM qbank_questions WHERE id = ANY(?::text[])', [ids]);
-    const by = new Map(qs.map((q) => [q.id, q]));
-    const given = s.finished_at ? parse(s.answers, {}) : (req.body?.answers || {});
-    const review = ids.map((qid) => by.get(qid)).filter(Boolean).map((q) => {
-      const c = Number.isInteger(given[q.id]) && given[q.id] >= 0 && given[q.id] < LETTERS ? given[q.id] : null;
-      return { ...pubQ(q), choice: c, answer: q.answer, correct: c === q.answer, explanation: q.explanation, tip: q.tip };
-    });
-    const score = review.filter((r) => r.correct).length;
-    const sat = satScore(review.map((r) => ({ correct: r.correct, difficulty: r.difficulty })));
-    if (!s.finished_at) {
-      const u = who(req);
-      await db.run('UPDATE practice_sessions SET answers = ?, score = ?, estimate = ?, finished_at = now(), user_id = COALESCE(user_id, ?) WHERE id = ?', [JSON.stringify(given), score, sat?.score ?? null, u?.id || null, s.id]);
-    }
-    const skills = {};
-    for (const r of review) { const k = (skills[r.skill] ||= { skill: r.skill, domain: r.domain, n: 0, ok: 0 }); k.n++; k.ok += r.correct ? 1 : 0; }
-    const pct = review.length ? score / review.length : 0;
-    res.json({ id: s.id, score, total: review.length, percent: Math.round(pct * 100), estimate: sat?.score ?? 200, sat, skills: Object.values(skills), review });
-  }));
+  registerPractice(app, { h, bad, who });
 }
 
 export function registerSiteAdmin(app, { h, bad, requireMaster }) {

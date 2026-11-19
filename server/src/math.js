@@ -19,7 +19,7 @@ import { logMath } from './mathroad.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const STARTER_FILE = path.join(here, 'math', 'starter.json');
-const starter = () => JSON.parse(fs.readFileSync(STARTER_FILE, 'utf8'));
+export const starter = () => JSON.parse(fs.readFileSync(STARTER_FILE, 'utf8'));
 const LEVELS = ['easy', 'medium', 'hard'];
 
 export async function migrateMath() {

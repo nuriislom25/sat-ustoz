@@ -1,6 +1,6 @@
 import { Component, lazy, Suspense, useEffect } from 'react';
 import { countVisit } from './visit.js';
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { OfflineBar } from './offline.js';
 import { UpdateBar } from './updates.jsx';
 import ActivityTracker from './components/ActivityTracker.jsx';
@@ -97,6 +97,13 @@ export default function App() {
   const loc = useLocation();
   // the teacher's Visitors count (teachers themselves are not counted)
   useEffect(() => { if (!loading && user?.role !== 'master') countVisit(loc.pathname); }, [loc.pathname, loading, user?.role]);
+  // a guest who finished a practice test and then signed up goes back to that result (now with explanations)
+  const navTo = useNavigate();
+  useEffect(() => {
+    if (!user || user.role !== 'student') return;
+    let id = null; try { id = localStorage.getItem('pt-claim'); } catch { /* ignore */ }
+    if (id && /^[\w-]{6,40}$/.test(id) && !loc.pathname.startsWith('/practice/result/')) navTo(`/practice/result/${id}`, { replace: true });
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   if (loading) return <div style={{ height: '100vh', display: 'grid', placeItems: 'center' }}><Spinner /></div>;
   // visitors: the website (home, free practice tests, guides) — sign-in only when they want it
   if (!user) return (
@@ -109,6 +116,7 @@ export default function App() {
       <Route element={<PublicLayout />}>
         <Route index element={<Landing />} />
         <Route path="practice" element={<Practice />} />
+        <Route path="practice/result/:id" element={<Practice />} />
         <Route path="s/:id" element={<SectionPage />} />
         <Route path="p/:slug" element={<PageView />} />
         <Route path="about" element={<AboutPage />} />
@@ -147,6 +155,7 @@ export default function App() {
       <Route path="/play/:code" element={<Play />} />
       <Route element={<Layout />}>
         <Route path="practice" element={math ? <MathHome /> : <Practice />} />
+        <Route path="practice/result/:id" element={<Practice />} />
         <Route path="vocab" element={math ? home : <VocabHome />} />
         <Route path="vocab/deck/:deckId" element={math ? home : <VocabHome />} />
         <Route path="vocab/unit/:id" element={math ? home : <VocabUnit />} />

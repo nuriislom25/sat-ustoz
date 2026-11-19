@@ -87,41 +87,42 @@ function useNarrow() {
 }
 
 /**
- * Phones: no tiny half-screen boxes. A short passage sits above the question in one scroll;
- * a long one gets its own full-screen tab ("Passage" | "Question"), and each tab keeps its scroll place.
- * Every new question opens on the passage (or on the question when the passage is short).
+ * Phones: passage on top, question below, with a divider the student drags to give either one more room.
+ * A short passage takes only the room it needs; each part scrolls on its own and starts at the top on a new question.
+ * Tapping the divider folds the passage to a strip (and back).
  */
-function BBMobile({ left, right, id, tabs }) {
-  const [tab, setTab] = useState('passage');
-  const [short, setShort] = useState(true);
-  const probe = useRef(null);
-  const pScroll = useRef(null); const qScroll = useRef(null);
-  useLayoutEffect(() => {
-    const len = (probe.current?.textContent || '').trim().length;
-    const isShort = !tabs && len < 480;
-    setShort(isShort);
-    setTab('passage');
-    [pScroll, qScroll].forEach((r) => { if (r.current) r.current.scrollTop = 0; });
-  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
-  if (short) {
-    return (
-      <div className="bb-mob stack-mode" ref={qScroll}>
-        <section className="bb-mob-passage" aria-label="Passage" ref={probe}>{left}</section>
-        <section className="bb-mob-q" aria-label="Question">{right}</section>
-      </div>
-    );
-  }
+function BBMobile({ left, right, id }) {
+  const read = () => { try { return Number(localStorage.getItem('bb-mob-top')) || 42; } catch { return 42; } };
+  const [h, setH] = useState(read);
+  const [fold, setFold] = useState(false);
+  const box = useRef(null); const pScroll = useRef(null); const qScroll = useRef(null);
+  const hRef = useRef(h); hRef.current = h;
+  useLayoutEffect(() => { [pScroll, qScroll].forEach((r) => { if (r.current) r.current.scrollTop = 0; }); }, [id]);
+  const down = (e) => {
+    const rect = box.current.getBoundingClientRect();
+    const y0 = e.clientY; let moved = false;
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    const move = (ev) => {
+      if (Math.abs(ev.clientY - y0) > 6) moved = true;
+      if (!moved) return;
+      setFold(false);
+      setH(Math.min(80, Math.max(12, ((ev.clientY - rect.top) / rect.height) * 100)));
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+      if (!moved) setFold((f) => !f);
+      else { try { localStorage.setItem('bb-mob-top', String(Math.round(hRef.current))); } catch { /* ignore */ } }
+    };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  };
   return (
-    <div className="bb-mob tab-mode">
-      <div className="bb-mob-tabs" role="tablist">
-        <button role="tab" aria-selected={tab === 'passage'} className={tab === 'passage' ? 'on' : ''} onClick={() => setTab('passage')}>Passage</button>
-        <button role="tab" aria-selected={tab === 'question'} className={tab === 'question' ? 'on' : ''} onClick={() => setTab('question')}>Question</button>
+    <div className={`bb-mob split-mode ${fold ? 'folded' : ''}`} ref={box} style={{ '--mob-top': `${h}%` }}>
+      <section className="bb-mob-top" aria-label="Passage" ref={pScroll}>{left}</section>
+      <div className="bb-mob-handle" onPointerDown={down} role="separator" aria-orientation="horizontal" aria-label="Drag to resize the passage, tap to fold it" tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'ArrowUp') setH((x) => Math.max(12, x - 5)); if (e.key === 'ArrowDown') setH((x) => Math.min(80, x + 5)); if (e.key === 'Enter' || e.key === ' ') setFold((f) => !f); }}>
+        <span /><small>{fold ? 'Show passage' : ''}</small>
       </div>
-      <section className="bb-mob-pane" hidden={tab !== 'passage'} aria-label="Passage" ref={pScroll}>
-        <div ref={probe}>{left}</div>
-        <button type="button" className="bb-mob-go" onClick={() => { setTab('question'); }}>Go to the question <IconChevron width={16} height={16} /></button>
-      </section>
-      <section className="bb-mob-pane" hidden={tab !== 'question'} aria-label="Question" ref={qScroll}>{right}</section>
+      <section className="bb-mob-bottom" aria-label="Question" ref={qScroll}>{right}</section>
     </div>
   );
 }
