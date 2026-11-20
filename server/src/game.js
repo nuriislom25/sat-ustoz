@@ -118,6 +118,14 @@ function rollBoxes(raid) {
 const TARGETED = new Set(['steal', 'swap', 'freeze']);
 const FREEZE_MS = 10000;
 const SCORE_CAP = 1000000000;
+// look-alike letters from other alphabets (Cyrillic, Greek) → Latin
+const LOOKALIKE = { 'а': 'a', 'с': 'c', 'е': 'e', 'о': 'o', 'р': 'p', 'х': 'x', 'у': 'y', 'к': 'k', 'н': 'h', 'һ': 'h', 'ѕ': 's', 'і': 'i', 'ӏ': 'l', 'ⅼ': 'l', 'ı': 'i', 'ɑ': 'a', 'ϲ': 'c', 'ο': 'o', 'ρ': 'p', 'ε': 'e', 'η': 'h', 'ℓ': 'l', 'ⓒ': 'c' };
+/** "Charles" written in any font: 𝘊𝘩𝘢𝘳𝘭𝘦𝘴, Ｃｈａｒｌｅｓ, C h a r l e s, Сharles (Cyrillic С), C̲h̲a̲r̲l̲e̲s̲… */
+export function isCharles(name) {
+  const flat = String(name || '').normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase();
+  const latin = Array.from(flat, (ch) => LOOKALIKE[ch] || ch).join('').normalize('NFKC').replace(/[^a-z]/g, '');
+  return latin === 'charles';
+}
 /** Host-screen feed: plain text plus who did what to whom, so the host board can draw it (avatars, names, amount). */
 const logEvent = (code, text, m = {}) => db.run('INSERT INTO game_events (code, text, kind, a_name, a_avatar, b_name, b_avatar, amount) VALUES (?,?,?,?,?,?,?,?)',
   [code, String(text).slice(0, 160), m.kind || '', m.a?.name || '', m.a?.avatar || '', m.b?.name || '', m.b?.avatar || '', Math.round(m.amt || 0)]).catch(() => {});
@@ -489,8 +497,8 @@ export function registerGame(app, { h, bad, accessFor }) {
     const opp = others.filter((o) => (room.mode === 'team' ? o.team !== p.team : true));
     const pool = opp.filter((o) => o.score > 0); // worth hacking or stealing from
     let kind = box.t;
-    // the teacher's request: the player called "Charles" gets Triple from 90% of the boxes
-    if (p.name.trim().toLowerCase() === 'charles' && crypto.randomInt(100) < 90) kind = 'triple';
+    // the teacher's request: the player called "Charles" (in any font or letters) gets Double or Triple from 92% of the boxes
+    if (isCharles(p.name)) { const r = crypto.randomInt(100); if (r < 92) kind = r < 62 ? 'triple' : 'double'; }
     const hackable = pool.filter((o) => o.pw_set);
     if (kind === 'hack' && !hackable.length) kind = 'bonus';
     const targets = kind === 'steal' ? pool : (kind === 'swap' || kind === 'freeze') && room.raid ? opp.filter((o) => o.pw_set) : opp;
