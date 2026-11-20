@@ -50,6 +50,7 @@ const GroupDetail = page(() => import('./pages/master/GroupDetail.jsx'));
 const MyGroups = page(() => import('./pages/student/MyGroups.jsx'));
 const QuizManager = page(() => import('./pages/master/QuizManager.jsx'));
 const QuizEditor = page(() => import('./pages/master/QuizEditor.jsx'));
+const QuizPreview = page(() => import('./pages/master/QuizPreview.jsx'));
 const RoadmapEditor = page(() => import('./pages/master/RoadmapEditor.jsx'));
 const Settings = page(() => import('./pages/master/Settings.jsx'));
 const Welcome = page(() => import('./pages/student/Welcome.jsx'));
@@ -175,6 +176,7 @@ export default function App() {
             <Route path="quizzes" element={<QuizManager />} />
             <Route path="quizzes/new" element={<QuizEditor />} />
             <Route path="quizzes/:id/edit" element={<QuizEditor />} />
+            <Route path="quizzes/:id/view" element={<QuizPreview />} />
             <Route path="roadmap" element={<RoadmapEditor />} />
             <Route path="settings" element={<Settings />} />
             <Route path="admins" element={<Admins />} />

@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { api, fmtDate } from '../../api.js';
 import { useToast } from '../../context.jsx';
 import { Card, Confirm, Empty, Field, Gate, Modal, PageHeader, pctTone, useAsync } from '../../components/ui.jsx';
-import { IconChart, IconChevron, IconDownload, IconEdit, IconFolder, IconFolderPlus, IconLayers, IconMove, IconPlus, IconQuiz, IconSearch, IconTask, IconTrash } from '../../components/icons.jsx';
+import { IconChart, IconChevron, IconDownload, IconEdit, IconEye, IconFolder, IconFolderPlus, IconLayers, IconMove, IconPlus, IconQuiz, IconSearch, IconTask, IconTrash } from '../../components/icons.jsx';
 import { AssignModal as TaskAssign } from '../student/Assignments.jsx';
 import { folderTools } from '../../folders.js';
 
@@ -145,7 +145,7 @@ export default function QuizManager() {
                       <label className="qf-check" onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={sel.has(x.id)} onChange={() => { const n = new Set(sel); n.has(x.id) ? n.delete(x.id) : n.add(x.id); setSel(n); }} aria-label={`Select ${x.title}`} /></label>
                       <div className="quiz-ico"><IconQuiz /></div>
                       <div className="stack sm" style={{ minWidth: 0 }}>
-                        <h3>{x.title}</h3>
+                        <h3><Link className="qf-title" to={`/quizzes/${x.id}/view`} draggable={false}>{x.title}</Link></h3>
                         {searching && x.folder_id && <small className="muted qf-path"><IconFolder width={13} height={13} /> {T.path(x.folder_id).map((f) => f.name).join(' / ')}</small>}
                         <div className="quiz-meta">
                           <span className="chip">{x.questions} questions</span>
@@ -163,6 +163,7 @@ export default function QuizManager() {
                         </div>
                       </div>
                       <div className="row wrap qf-acts">
+                        <Link className="btn ghost sm" to={`/quizzes/${x.id}/view`} draggable={false}><IconEye width={16} height={16} /> Questions</Link>
                         <button className="btn soft sm" onClick={() => setGive(x)}><IconTask width={16} height={16} /> Assign to…</button>
                         <button className="btn ghost sm" onClick={() => setAssign(x)} title="Who sees it on the Quizzes page"><IconLayers width={16} height={16} /> Visibility</button>
                         <button className="icon-btn" title="Move to a folder" aria-label="Move to a folder" onClick={() => setMoving({ quizIds: [x.id], title: x.title })}><IconMove width={18} height={18} /></button>
