@@ -389,7 +389,7 @@ export function registerGame(app, { h, bad, accessFor }) {
       elapsed: room.started_at ? Math.max(0, Math.round((Date.now() - new Date(room.started_at)) / 1000)) : 0,
       host: isHost, players: players.map(({ token: _t, pw: _w, pw_set: _ws, pending: _p, hit_by: _b, hit_amt: _a, hit_seq: _s, hit_kind: _k, frozen_until: fz, ...p }) => ({ ...p, frozen: !!fz && new Date(fz) > new Date(), me: p.id === me?.id })), teams,
       me: me ? { id: me.id, name: me.name, avatar: me.avatar, team: me.team, score: me.score, answered: me.answered, correct: me.correct, streak: me.streak, shield: me.shield,
-        frozen_ms: me.frozen_until ? Math.max(0, new Date(me.frozen_until) - Date.now()) : 0, pw: room.raid && me.pw_set ? me.pw : undefined, pw_set: !room.raid || !!me.pw_set, raid: raidView(me) } : null,
+        frozen_ms: me.frozen_until ? Math.max(0, new Date(me.frozen_until) - Date.now()) : 0, pw_set: !room.raid || !!me.pw_set, raid: raidView(me) } : null,
       // what happened in the game (host screen)
       feed: isHost ? (await db.all('SELECT id, text, kind, a_name, a_avatar, b_name, b_avatar, amount, at FROM game_events WHERE code = ? ORDER BY id DESC LIMIT 10', [room.code])).map((e) => ({ ...e, amount: Number(e.amount) })) : undefined,
       // questions go to players only while the game runs; answers are never included

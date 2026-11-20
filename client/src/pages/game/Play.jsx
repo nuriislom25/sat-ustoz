@@ -310,7 +310,6 @@ function Questions({ room, token, reload }) {
         <span className={`arena-streak ${me.streak >= 2 ? 'hot' : ''}`}>{me.streak >= 2 ? `${me.streak} in a row` : 'Streak 0'}</span>
         <span className="arena-score"><Character kind={me.avatar} size={30} /> {me.score}</span>
       </div>
-      {room.raid && room.me.pw && <div className="raid-mypw-hud">Your password: <b>{room.me.pw}</b></div>}
       {room.zone !== 'classic' && <ZoneTrack room={{ ...room, players: room.players.map((p) => (p.me ? { ...p, correct: Math.max(me.correct || 0, p.correct) } : p)) }} limit={5} compact />}
       {room.mode === 'duel' && room.zone === 'classic' && (() => {
         const opp = room.players.find((p) => !p.me);
