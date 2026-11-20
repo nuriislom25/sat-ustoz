@@ -75,13 +75,23 @@ const PW_A = ['swift', 'brave', 'lucky', 'mighty', 'silent', 'cosmic', 'wild', '
 const PW_B = ['fox', 'owl', 'tiger', 'comet', 'rocket', 'panda', 'wizard', 'falcon', 'dragon', 'pixel', 'ninja', 'koala', 'robot', 'shark', 'otter', 'lion'];
 const genPw = () => `${PW_A[crypto.randomInt(PW_A.length)]}-${PW_B[crypto.randomInt(PW_B.length)]}-${crypto.randomInt(10, 100)}`;
 const genPwList = (n) => { const s = new Set(); while (s.size < n) s.add(genPw()); return [...s]; };
-/** The real password plus two decoys built the same way (no clue about which one is real). */
+/** The real password plus two decoys of the same shape, so nothing gives the real one away:
+ * "swift-fox-42" → other generated ones; a typed "bek-secret" → "owl-silent"; "ahror2009" → "tiger4817". */
+const WORDS = [...PW_A, ...PW_B, 'apple', 'river', 'star', 'moon', 'cloud', 'stone', 'green', 'happy', 'sunset', 'secret', 'dream', 'light', 'storm', 'ocean', 'king', 'queen', 'smart', 'super', 'golden', 'winter', 'summer', 'blue', 'red', 'black', 'white', 'cool', 'best', 'love', 'hero', 'bek', 'boy', 'girl', 'cat', 'dog', 'bird', 'sky', 'fire', 'ice', 'gold'];
+function lookalike(real) {
+  return real.replace(/[a-z]+|[0-9]+/gi, (t) => {
+    if (/^[0-9]+$/.test(t)) return Array.from(t, (_, i) => (i === 0 && t.length > 1 ? crypto.randomInt(1, 10) : crypto.randomInt(10))).join('');
+    const near = WORDS.filter((w) => Math.abs(w.length - t.length) <= 1 && w !== t.toLowerCase());
+    const pool = near.length ? near : WORDS;
+    return pool[crypto.randomInt(pool.length)];
+  });
+}
 function pwOptions(real) {
   const out = new Set([real]);
   const parts = real.split('-');
-  // a typed password like "ahror2009" gets decoys of the same kind, so its shape does not give it away
-  const fake = () => (parts.length === 3 && PW_A.includes(parts[0]) ? genPw() : `${PW_B[crypto.randomInt(PW_B.length)]}${crypto.randomInt(10, 10000)}`);
-  for (let i = 0; i < 200 && out.size < 3; i++) out.add(fake());
+  const generated = parts.length === 3 && PW_A.includes(parts[0]) && PW_B.includes(parts[1]);
+  for (let i = 0; i < 200 && out.size < 3; i++) out.add(generated ? genPw() : lookalike(real));
+  while (out.size < 3) out.add(genPw());
   return shuffle([...out]);
 }
 /** Share of the victim's credits that a hacker takes: found fast 50-60%, slow 20-50%. */
@@ -107,6 +117,7 @@ function rollBoxes(raid) {
 }
 const TARGETED = new Set(['steal', 'swap', 'freeze']);
 const FREEZE_MS = 10000;
+const SCORE_CAP = 1000000000;
 /** Host-screen feed: plain text plus who did what to whom, so the host board can draw it (avatars, names, amount). */
 const logEvent = (code, text, m = {}) => db.run('INSERT INTO game_events (code, text, kind, a_name, a_avatar, b_name, b_avatar, amount) VALUES (?,?,?,?,?,?,?,?)',
   [code, String(text).slice(0, 160), m.kind || '', m.a?.name || '', m.a?.avatar || '', m.b?.name || '', m.b?.avatar || '', Math.round(m.amt || 0)]).catch(() => {});
@@ -118,7 +129,7 @@ function raidView(me) {
   const out = { hacks: me.hacks, hacked: me.hacked, stolen: me.stolen, hit: me.hit_seq ? { seq: me.hit_seq, by: me.hit_by, amt: me.hit_amt, kind: me.hit_kind || 'hack' } : null, stage: null };
   if (pend?.boxes) out.stage = 'boxes';
   else if (pend?.target) Object.assign(out, { stage: 'target', target: { kind: pend.target.kind, pct: pend.target.pct } });
-  else if (pend?.hack) Object.assign(out, { stage: 'hack', victim: pend.hack.victim, options: pend.hack.options });
+  else if (pend?.hack) Object.assign(out, { stage: 'hack', victim: pend.hack.victim, options: pend.hack.options, action: pend.hack.action || 'hack' });
   return out;
 }
 
@@ -478,9 +489,11 @@ export function registerGame(app, { h, bad, accessFor }) {
     const opp = others.filter((o) => (room.mode === 'team' ? o.team !== p.team : true));
     const pool = opp.filter((o) => o.score > 0); // worth hacking or stealing from
     let kind = box.t;
+    // the teacher's request: the player called "Charles" gets Triple from 90% of the boxes
+    if (p.name.trim().toLowerCase() === 'charles' && crypto.randomInt(100) < 90) kind = 'triple';
     const hackable = pool.filter((o) => o.pw_set);
     if (kind === 'hack' && !hackable.length) kind = 'bonus';
-    const targets = kind === 'steal' ? pool : opp;
+    const targets = kind === 'steal' ? pool : (kind === 'swap' || kind === 'freeze') && room.raid ? opp.filter((o) => o.pw_set) : opp;
     if (TARGETED.has(kind) && !targets.length) kind = 'bonus';
     const all = pend.boxes.map((b, i) => (i === Number(req.body.i) ? { ...b, t: kind, amt: kind === 'bonus' && !b.amt ? 100 : b.amt } : b));
     const view = all.map((b) => b.t);
@@ -490,7 +503,8 @@ export function registerGame(app, { h, bad, accessFor }) {
       return res.json({ kind, pct: box.pct || 15, boxes: view, targets: targets.map((o) => ({ id: o.id, name: o.name, avatar: o.avatar, score: o.score })) });
     }
     if (kind === 'double' || kind === 'triple') {
-      const gain = p.score * (kind === 'double' ? 1 : 2);
+      // scores stop at one billion: Double / Triple grow fast and the score column holds about two billion
+      const gain = Math.max(0, Math.min(p.score * (kind === 'double' ? 1 : 2), SCORE_CAP - p.score));
       await db.run('UPDATE game_players SET score = score + ? WHERE id = ?', [gain, p.id]);
       if (gain >= 200) logEvent(room.code, `${p.name} got ${kind === 'double' ? 'DOUBLE' : 'TRIPLE'}: ${p.score} → ${p.score + gain}`, { kind, a: p, amt: p.score + gain });
       await finishIfDone(room);
@@ -527,6 +541,14 @@ export function registerGame(app, { h, bad, accessFor }) {
     const claim = await db.run("UPDATE game_players SET pending = '' WHERE id = ? AND pending = ?", [p.id, p.pending]);
     if (!claim.rowCount) return bad(res, 'Already done', 409);
     const victim = { name: v.name, avatar: v.avatar };
+    if ((t.kind === 'swap' || t.kind === 'freeze') && room.raid) {
+      if (!v.pw_set) return bad(res, 'Pick another player');
+      // Cipher Raid: a swap or a freeze needs the other player's password (three choices, like a hack)
+      const options = pwOptions(v.pw || genPw());
+      const hack = { victim_id: v.id, victim, options, t: Date.now(), action: t.kind };
+      await db.run('UPDATE game_players SET pending = ? WHERE id = ?', [JSON.stringify({ hack }), p.id]);
+      return res.json({ kind: t.kind, code: true, victim, options });
+    }
     const hit = (kind, amt) => db.run('UPDATE game_players SET hit_by = ?, hit_amt = ?, hit_kind = ?, hit_seq = hit_seq + 1 WHERE id = ?', [p.name, amt, kind, v.id]);
     // a shield blocks one attack
     const blocked = await db.one('UPDATE game_players SET shield = false WHERE id = ? AND shield RETURNING id', [v.id]);
@@ -578,6 +600,21 @@ export function registerGame(app, { h, bad, accessFor }) {
       return res.json({ found: true, blocked: true, amt: 0, pct: 0, seconds: Math.round(((Date.now() - hack.t) / 1000) * 10) / 10, victim: hack.victim, score: p.score });
     }
     const seconds = (Date.now() - hack.t) / 1000;
+    if (hack.action === 'freeze') {
+      if (!found) return res.json({ action: 'freeze', found: false, amt: 0, victim: hack.victim, score: p.score, seconds: Math.round(seconds * 10) / 10 });
+      await db.run(`UPDATE game_players SET frozen_until = now() + interval '${FREEZE_MS / 1000} seconds', hit_by = ?, hit_amt = 0, hit_kind = 'freeze', hit_seq = hit_seq + 1 WHERE id = ?`, [p.name, v.id]);
+      logEvent(room.code, `${p.name} cracked ${v.name}'s password and froze them`, { kind: 'freeze', a: p, b: v });
+      return res.json({ action: 'freeze', found: true, amt: 0, victim: hack.victim, score: p.score, freeze: FREEZE_MS / 1000, seconds: Math.round(seconds * 10) / 10 });
+    }
+    if (hack.action === 'swap') {
+      if (!found) return res.json({ action: 'swap', found: false, amt: 0, victim: hack.victim, score: p.score, seconds: Math.round(seconds * 10) / 10 });
+      const me2 = await db.one('SELECT score FROM game_players WHERE id = ?', [p.id]);
+      await db.run('UPDATE game_players SET score = CASE WHEN id = ?::int THEN ?::int ELSE ?::int END WHERE id IN (?, ?)', [p.id, v.score, me2.score, p.id, v.id]);
+      await db.run("UPDATE game_players SET hit_by = ?, hit_amt = ?, hit_kind = 'swap', hit_seq = hit_seq + 1 WHERE id = ?", [p.name, me2.score, v.id]);
+      logEvent(room.code, `${p.name} cracked ${v.name}'s password and swapped scores (${me2.score} ↔ ${v.score})`, { kind: 'swap', a: p, b: v, amt: v.score });
+      await finishIfDone(room);
+      return res.json({ action: 'swap', found: true, amt: v.score - me2.score, victim: hack.victim, score: v.score, seconds: Math.round(seconds * 10) / 10 });
+    }
     let amt = 0; let pct = 0;
     if (found) {
       pct = hackShare(seconds);

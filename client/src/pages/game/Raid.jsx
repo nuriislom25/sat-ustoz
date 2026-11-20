@@ -62,7 +62,7 @@ export function RaidPanel({ code, token, init, onDone, others = [] }) {
   const [boxes, setBoxes] = useState(['', '', '']);
   const [pick, setPick] = useState(-1);   // the box that was opened
   const [sel, setSel] = useState(null);    // selected, waiting for the second tap
-  const [res, setRes] = useState(init?.stage === 'hack' ? { kind: 'hack', victim: init.victim, options: init.options }
+  const [res, setRes] = useState(init?.stage === 'hack' ? { kind: 'hack', action: init.action || 'hack', victim: init.victim, options: init.options }
     : init?.stage === 'target' ? { kind: init.target.kind, pct: init.target.pct, targets: others } : null);
   const [out, setOut] = useState(null);
   const [done, setDone] = useState(false); // the result is shown: "Next question"
@@ -94,14 +94,19 @@ export function RaidPanel({ code, token, init, onDone, others = [] }) {
   const target = async (id) => {
     if (out) return;
     busy.current = true;
-    try { const r = await api.post(`/game/${code}/target`, { token, id }); setOut(r); score.current = r.score; (r.blocked ? sfxWrong : sfxRight)(); setDone(true); fresh(); }
+    try {
+      const r = await api.post(`/game/${code}/target`, { token, id });
+      // Cipher Raid swap: first crack their password
+      if (r.code) { setRes({ kind: 'hack', action: r.kind, victim: r.victim, options: r.options }); setStage('hack'); fresh(); busy.current = false; return; }
+      setOut(r); score.current = r.score; (r.blocked ? sfxWrong : sfxRight)(); setDone(true); fresh();
+    }
     catch { onDone(null); }
     busy.current = false;
   };
   const hack = async (k) => {
     if (out) return;
     busy.current = true;
-    try { const r = await api.post(`/game/${code}/hack`, { token, choice: k }); setOut({ ...r, pick: k }); score.current = r.score; (r.found && r.amt ? sfxRight : sfxWrong)(); setDone(true); fresh(); }
+    try { const r = await api.post(`/game/${code}/hack`, { token, choice: k }); setOut({ ...r, pick: k }); score.current = r.score; (r.found && !r.blocked && (r.amt || r.action) ? sfxRight : sfxWrong)(); setDone(true); fresh(); }
     catch { onDone(null); }
     busy.current = false;
   };
@@ -158,15 +163,17 @@ export function RaidPanel({ code, token, init, onDone, others = [] }) {
         )}
         {stage === 'hack' && res && (
           <>
-            <small className="raid-tag hot">HACK</small>
-            <div className="raid-target"><Character kind={res.victim.avatar} size={54} /><div><b>{res.victim.name}</b><small>Which one is their password?</small></div></div>
+            <small className="raid-tag hot">{res.action === 'swap' ? 'SWAP · ENTER THE CODE' : res.action === 'freeze' ? 'FREEZE · ENTER THE CODE' : 'HACK'}</small>
+            <div className="raid-target"><Character kind={res.victim.avatar} size={54} /><div><b>{res.victim.name}</b><small>{res.action === 'swap' ? 'Pick their password to swap scores with them.' : res.action === 'freeze' ? 'Pick their password to freeze them for 10 seconds.' : 'Which one is their password?'}</small></div></div>
             <div className="raid-opts">
               {res.options.map((o, k) => (
                 <button key={o} type="button" className={`raid-opt ${out ? (out.pick === k ? (out.found ? 'right' : 'wrong') : 'dim') : sel === `h${k}` ? 'sel' : ''}`} onClick={() => twice(`h${k}`, () => hack(k))} disabled={!!out}>{o}</button>
               ))}
             </div>
-            {!out && (sel ? again : <p className="raid-meter">Steal now: <b>{Math.round(live)}%</b> of their credits <small>(drops the longer you wait)</small></p>)}
-            {out && <p className={`raid-gain ${out.found && out.amt ? '' : 'miss'}`}>{out.blocked ? `${res.victim.name} had a shield. Blocked!` : out.found ? (out.amt ? `Access! You took ${out.amt} credits (${out.pct}%) in ${out.seconds}s` : 'Access, but they had nothing left') : 'Wrong password. Nothing stolen.'}</p>}
+            {!out && (sel ? again : res.action === 'swap' ? <p className="raid-again soft">Right password = your scores swap</p> : res.action === 'freeze' ? <p className="raid-again soft">Right password = they are frozen</p> : <p className="raid-meter">Steal now: <b>{Math.round(live)}%</b> of their credits <small>(drops the longer you wait)</small></p>)}
+            {out && res.action === 'swap' && <p className={`raid-gain ${out.found ? '' : 'miss'}`}>{out.blocked ? `${res.victim.name} had a shield. Blocked!` : out.found ? `Code cracked! You swapped scores with ${res.victim.name}: now ${out.score}` : 'Wrong password. No swap.'}</p>}
+            {out && res.action === 'freeze' && <p className={`raid-gain ${out.found && !out.blocked ? '' : 'miss'}`}>{out.blocked ? `${res.victim.name} had a shield. Blocked!` : out.found ? `Code cracked! ${res.victim.name} is frozen for ${out.freeze} seconds` : 'Wrong password. No freeze.'}</p>}
+            {out && res.action !== 'swap' && res.action !== 'freeze' && <p className={`raid-gain ${out.found && out.amt ? '' : 'miss'}`}>{out.blocked ? `${res.victim.name} had a shield. Blocked!` : out.found ? (out.amt ? `Access! You took ${out.amt} credits (${out.pct}%) in ${out.seconds}s` : 'Access, but they had nothing left') : 'Wrong password. Nothing stolen.'}</p>}
           </>
         )}
         {done && <button type="button" className="btn sun lg block" onClick={moveOn}>Next question</button>}
