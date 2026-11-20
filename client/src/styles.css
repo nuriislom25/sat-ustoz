@@ -4249,3 +4249,20 @@ a.mr-lesson:hover { text-decoration: none; border-color: var(--m); }
   .pw-sizes { gap: 6px; } .pw-types { grid-template-columns: 1fr; }
   .pw-plan-cta, .pw-plan-cta .btn, .pw-lock .btn { width: 100%; justify-content: center; }
 }
+
+/* Word Arena: two taps to answer (select, then lock in), no auto-advance */
+.arena-opt { position: relative; }
+.arena-opt.sel { outline: 4px solid var(--sun); outline-offset: 2px; transform: scale(1.02); box-shadow: 0 0 0 8px rgba(255, 203, 61, .18); }
+.arena-opt.other { opacity: .6; }
+.arena-lockin { position: absolute; right: 12px; bottom: -12px; padding: 3px 10px; border-radius: 99px; background: var(--sun); color: #161B3D; font: 800 .72rem var(--font); font-style: normal; letter-spacing: .02em; box-shadow: 0 4px 10px rgba(0,0,0,.25); animation: lockin 1s ease-in-out infinite alternate; pointer-events: none; }
+@keyframes lockin { from { transform: translateY(0); } to { transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .arena-lockin { animation: none; } }
+.arena-next { position: sticky; bottom: 12px; z-index: 5; margin-top: 14px; animation: ar-rise .25s ease-out both; }
+@keyframes ar-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.raid-again { margin: 0; font-weight: 800; color: var(--sun); } .raid-again.soft { color: #9AA3C7; font-weight: 600; font-size: .9rem; }
+.raid-box.sel { border-color: var(--sun); box-shadow: 0 0 0 4px rgba(255, 203, 61, .3); transform: translateY(-3px) scale(1.04); }
+.box-targets button.sel, .raid-opt.sel { outline: 3px solid var(--sun); outline-offset: 2px; }
+.raid-note { margin: 0; font-size: .86rem; color: #5B6275; text-align: center; }
+.raid-mypw-hud { justify-self: center; padding: 6px 14px; border-radius: 99px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); font-size: .84rem; color: #C7CBDA; }
+.raid-mypw-hud b { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--sun); }
+.raid-gate h2 { margin: 0; text-align: center; }

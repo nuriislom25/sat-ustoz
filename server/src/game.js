@@ -45,6 +45,7 @@ ALTER TABLE game_players ADD COLUMN IF NOT EXISTS bot_speed REAL NOT NULL DEFAUL
 ALTER TABLE game_rooms ADD COLUMN IF NOT EXISTS zone TEXT NOT NULL DEFAULT 'classic';
 ALTER TABLE game_rooms ADD COLUMN IF NOT EXISTS raid BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE game_players ADD COLUMN IF NOT EXISTS pw TEXT NOT NULL DEFAULT '';
+ALTER TABLE game_players ADD COLUMN IF NOT EXISTS pw_set BOOLEAN NOT NULL DEFAULT true;
 ALTER TABLE game_players ADD COLUMN IF NOT EXISTS pending TEXT NOT NULL DEFAULT '';
 ALTER TABLE game_players ADD COLUMN IF NOT EXISTS hacks INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE game_players ADD COLUMN IF NOT EXISTS hacked INTEGER NOT NULL DEFAULT 0;
@@ -74,12 +75,13 @@ const PW_A = ['swift', 'brave', 'lucky', 'mighty', 'silent', 'cosmic', 'wild', '
 const PW_B = ['fox', 'owl', 'tiger', 'comet', 'rocket', 'panda', 'wizard', 'falcon', 'dragon', 'pixel', 'ninja', 'koala', 'robot', 'shark', 'otter', 'lion'];
 const genPw = () => `${PW_A[crypto.randomInt(PW_A.length)]}-${PW_B[crypto.randomInt(PW_B.length)]}-${crypto.randomInt(10, 100)}`;
 const genPwList = (n) => { const s = new Set(); while (s.size < n) s.add(genPw()); return [...s]; };
-/** The real password plus two decoys: one shares its first letter, one does not. */
+/** The real password plus two decoys built the same way (no clue about which one is real). */
 function pwOptions(real) {
   const out = new Set([real]);
-  for (let i = 0; i < 200 && out.size < 2; i++) { const d = genPw(); if (d[0] === real[0] && !out.has(d)) out.add(d); }
-  for (let i = 0; i < 200 && out.size < 3; i++) { const d = genPw(); if (d[0] !== real[0] && !out.has(d)) out.add(d); }
-  while (out.size < 3) out.add(genPw());
+  const parts = real.split('-');
+  // a typed password like "ahror2009" gets decoys of the same kind, so its shape does not give it away
+  const fake = () => (parts.length === 3 && PW_A.includes(parts[0]) ? genPw() : `${PW_B[crypto.randomInt(PW_B.length)]}${crypto.randomInt(10, 10000)}`);
+  for (let i = 0; i < 200 && out.size < 3; i++) out.add(fake());
   return shuffle([...out]);
 }
 /** Share of the victim's credits that a hacker takes: found fast 50-60%, slow 20-50%. */
@@ -116,7 +118,7 @@ function raidView(me) {
   const out = { hacks: me.hacks, hacked: me.hacked, stolen: me.stolen, hit: me.hit_seq ? { seq: me.hit_seq, by: me.hit_by, amt: me.hit_amt, kind: me.hit_kind || 'hack' } : null, stage: null };
   if (pend?.boxes) out.stage = 'boxes';
   else if (pend?.target) Object.assign(out, { stage: 'target', target: { kind: pend.target.kind, pct: pend.target.pct } });
-  else if (pend?.hack) Object.assign(out, { stage: 'hack', victim: pend.hack.victim, options: pend.hack.options, hint: pend.hack.hint });
+  else if (pend?.hack) Object.assign(out, { stage: 'hack', victim: pend.hack.victim, options: pend.hack.options });
   return out;
 }
 
@@ -358,8 +360,8 @@ export function registerGame(app, { h, bad, accessFor }) {
     const token = crypto.randomBytes(18).toString('hex');
     const me = tokenUser(req);
     if (VIP_CHARACTERS.has(avatar) && !(me && (await isVip(me.id)))) avatar = 'owl';
-    const pw = String(req.body?.pw || '').replace(/[^a-z0-9-]/gi, '').slice(0, 24) || genPw();
-    await db.run('INSERT INTO game_players (code, token, user_id, name, avatar, team, pw) VALUES (?,?,?,?,?,?,?)', [room.code, token, me?.id || null, name, avatar, team, pw]);
+    // Cipher Raid: the secret password is chosen once the host starts the game (POST /password)
+    await db.run('INSERT INTO game_players (code, token, user_id, name, avatar, team, pw, pw_set) VALUES (?,?,?,?,?,?,?,?)', [room.code, token, me?.id || null, name, avatar, team, genPw(), !room.raid]);
     res.json({ token, team });
   }));
 
@@ -376,7 +378,7 @@ export function registerGame(app, { h, bad, accessFor }) {
     }
     const isHost = token && token === room.host_token;
     if (token && !isHost) await db.run('UPDATE game_players SET seen_at = now() WHERE token = ?', [token]);
-    const players = await db.all('SELECT id, token, name, avatar, team, score, correct, answered, streak, best_streak, is_bot, hacks, hacked, stolen, pw, pending, hit_by, hit_amt, hit_seq, hit_kind, shield, frozen_until FROM game_players WHERE code = ? ORDER BY score DESC, correct DESC, joined_at', [room.code]);
+    const players = await db.all('SELECT id, token, name, avatar, team, score, correct, answered, streak, best_streak, is_bot, hacks, hacked, stolen, pw, pw_set, pending, hit_by, hit_amt, hit_seq, hit_kind, shield, frozen_until FROM game_players WHERE code = ? ORDER BY score DESC, correct DESC, joined_at', [room.code]);
     const questions = JSON.parse(room.questions);
     const me = players.find((p) => p.token === token);
     const teams = room.mode === 'team' ? TEAMS.map((t) => { const ps = players.filter((p) => p.team === t); return { name: t, score: ps.reduce((s, p) => s + p.score, 0), players: ps.length }; }) : [];
@@ -385,9 +387,9 @@ export function registerGame(app, { h, bad, accessFor }) {
       goal: room.goal || 0, timer: room.minutes > 0,
       seconds_left: room.minutes > 0 ? (room.ends_at ? Math.max(0, Math.round((new Date(room.ends_at) - Date.now()) / 1000)) : room.minutes * 60) : null,
       elapsed: room.started_at ? Math.max(0, Math.round((Date.now() - new Date(room.started_at)) / 1000)) : 0,
-      host: isHost, players: players.map(({ token: _t, pw: _w, pending: _p, hit_by: _b, hit_amt: _a, hit_seq: _s, hit_kind: _k, frozen_until: fz, ...p }) => ({ ...p, frozen: !!fz && new Date(fz) > new Date(), me: p.id === me?.id })), teams,
+      host: isHost, players: players.map(({ token: _t, pw: _w, pw_set: _ws, pending: _p, hit_by: _b, hit_amt: _a, hit_seq: _s, hit_kind: _k, frozen_until: fz, ...p }) => ({ ...p, frozen: !!fz && new Date(fz) > new Date(), me: p.id === me?.id })), teams,
       me: me ? { id: me.id, name: me.name, avatar: me.avatar, team: me.team, score: me.score, answered: me.answered, correct: me.correct, streak: me.streak, shield: me.shield,
-        frozen_ms: me.frozen_until ? Math.max(0, new Date(me.frozen_until) - Date.now()) : 0, pw: room.raid ? me.pw : undefined, raid: raidView(me) } : null,
+        frozen_ms: me.frozen_until ? Math.max(0, new Date(me.frozen_until) - Date.now()) : 0, pw: room.raid && me.pw_set ? me.pw : undefined, pw_set: !room.raid || !!me.pw_set, raid: raidView(me) } : null,
       // what happened in the game (host screen)
       feed: isHost ? (await db.all('SELECT id, text, kind, a_name, a_avatar, b_name, b_avatar, amount, at FROM game_events WHERE code = ? ORDER BY id DESC LIMIT 10', [room.code])).map((e) => ({ ...e, amount: Number(e.amount) })) : undefined,
       // questions go to players only while the game runs; answers are never included
@@ -432,7 +434,8 @@ export function registerGame(app, { h, bad, accessFor }) {
     room = await ensureQuestions(room, p.answered + 1);
     const questions = JSON.parse(room.questions);
     const qi = Number(req.body?.qi);
-    if (qi !== p.answered || qi >= questions.length) return bad(res, 'This question was already answered', 409);
+    if (room.raid && !p.pw_set) return bad(res, 'Choose your secret password first', 409, { code: 'password' });
+    if (qi !== p.answered || qi >= questions.length) return bad(res, 'This question was already answered', 409, { code: 'resync', qi: p.answered });
     const q = questions[qi];
     const correct = Number(req.body?.choice) === q.answer;
     const streak = correct ? p.streak + 1 : 0;
@@ -446,8 +449,19 @@ export function registerGame(app, { h, bad, accessFor }) {
     res.json({ correct, answer: q.answer, gain, score: p.score + gain, streak, done: false, raid: boxes ? { stage: 'boxes' } : null });
   }));
 
-  // Cipher Raid: five random passwords to pick from when joining
+  // Cipher Raid: five random passwords to pick from
   app.get('/api/game/:code/passwords', h(async (req, res) => { res.json({ passwords: genPwList(5) }); }));
+
+  // Cipher Raid: the player chooses the secret password right after the host starts the game (once)
+  app.post('/api/game/:code/password', h(async (req, res) => {
+    const room = await db.one('SELECT * FROM game_rooms WHERE code = ?', [String(req.params.code)]);
+    if (!room || !room.raid || room.status !== 'playing') return bad(res, 'The game is not running', 409);
+    const pw = String(req.body?.pw || '').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 24);
+    if (pw.length < 3) return bad(res, 'The password needs at least 3 letters or digits');
+    const r = await db.run('UPDATE game_players SET pw = ?, pw_set = true WHERE code = ? AND token = ? AND NOT pw_set', [pw, room.code, String(req.body?.token || '')]);
+    if (!r.rowCount) return bad(res, 'Your password is already set', 409);
+    res.json({ pw });
+  }));
 
   // open one of the three boxes: credits, a jackpot or a hack
   app.post('/api/game/:code/box', h(async (req, res) => {
@@ -460,11 +474,12 @@ export function registerGame(app, { h, bad, accessFor }) {
     if (!box) return bad(res, 'No box to open', 409);
     const claim = await db.run("UPDATE game_players SET pending = '' WHERE id = ? AND pending = ?", [p.id, p.pending]);
     if (!claim.rowCount) return bad(res, 'Box already opened', 409);
-    const others = await db.all('SELECT id, name, avatar, team, score, pw FROM game_players WHERE code = ? AND id <> ?', [room.code, p.id]);
+    const others = await db.all('SELECT id, name, avatar, team, score, pw, pw_set FROM game_players WHERE code = ? AND id <> ?', [room.code, p.id]);
     const opp = others.filter((o) => (room.mode === 'team' ? o.team !== p.team : true));
     const pool = opp.filter((o) => o.score > 0); // worth hacking or stealing from
     let kind = box.t;
-    if (kind === 'hack' && !pool.length) kind = 'bonus';
+    const hackable = pool.filter((o) => o.pw_set);
+    if (kind === 'hack' && !hackable.length) kind = 'bonus';
     const targets = kind === 'steal' ? pool : opp;
     if (TARGETED.has(kind) && !targets.length) kind = 'bonus';
     const all = pend.boxes.map((b, i) => (i === Number(req.body.i) ? { ...b, t: kind, amt: kind === 'bonus' && !b.amt ? 100 : b.amt } : b));
@@ -486,11 +501,11 @@ export function registerGame(app, { h, bad, accessFor }) {
       return res.json({ kind, amt: 0, score: p.score, boxes: view });
     }
     if (kind === 'hack') {
-      const v = pool[crypto.randomInt(pool.length)];
+      const v = hackable[crypto.randomInt(hackable.length)];
       const options = pwOptions(v.pw || genPw());
-      const hack = { victim_id: v.id, victim: { name: v.name, avatar: v.avatar }, options, hint: (v.pw || '?')[0], t: Date.now() };
+      const hack = { victim_id: v.id, victim: { name: v.name, avatar: v.avatar }, options, t: Date.now() };
       await db.run('UPDATE game_players SET pending = ? WHERE id = ?', [JSON.stringify({ hack }), p.id]);
-      return res.json({ kind: 'hack', victim: hack.victim, options, hint: hack.hint, boxes: all.map((b) => b.t) });
+      return res.json({ kind: 'hack', victim: hack.victim, options, boxes: all.map((b) => b.t) });
     }
     const amt = box.t === 'hack' || TARGETED.has(box.t) ? 100 : box.amt || 100;
     await db.run('UPDATE game_players SET score = score + ? WHERE id = ?', [amt, p.id]);

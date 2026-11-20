@@ -6,7 +6,7 @@ import { Confetti, Modal, Spinner } from '../../components/ui.jsx';
 import Character, { CHARACTERS, CHARACTER_KEYS, CHARACTER_SETS, isVipCharacter } from '../../components/Character.jsx';
 import { Chips, DUEL_KEY, hostKey, playerKey, store, HERO_KEY } from './GameHub.jsx';
 import { BOT_LEVELS, ZONE, ZoneTrack, arenaTheme, isVip } from './zones.jsx';
-import { HitBanner, PasswordPick, RaidPanel } from './Raid.jsx';
+import { HitBanner, PasswordGate, RaidPanel } from './Raid.jsx';
 import { musicOn, sfxOn, setPref, startMusic, stopMusic, sfxRight, sfxWrong, sfxTick, sfxWin, sfxStart } from '../../components/gameAudio.js';
 
 const L = ['A', 'B', 'C', 'D'];
@@ -41,7 +41,7 @@ export default function Play() {
       {playing && room.status === 'playing' && <HitBanner hit={room.me.raid?.hit} />}
       {room.status === 'lobby' && <Lobby room={room} isHost={isHost} hostToken={hostToken} reload={load} />}
       {room.status === 'playing' && (playing
-        ? <Questions room={room} token={token} reload={load} />
+        ? room.raid && !room.me.pw_set ? <PasswordGate code={code} token={token} onDone={load} /> : <Questions room={room} token={token} reload={load} />
         : <Board room={room} isHost={isHost} hostToken={hostToken} reload={load} />)}
       {room.status === 'finished' && <Podium room={room} isHost={isHost} />}
     </Shell>
@@ -82,10 +82,9 @@ function Join({ code, room, onJoined }) {
   const [busy, setBusy] = useState(false);
   const [set, setSet] = useState('All');
   const [picking, setPicking] = useState(false);
-  const [pw, setPw] = useState('');
   const join = async (e) => {
     e.preventDefault(); setBusy(true); setError('');
-    try { const r = await api.post(`/game/${code}/join`, { name, avatar, pw: room.raid ? pw : undefined }); onJoined(r.token); }
+    try { const r = await api.post(`/game/${code}/join`, { name, avatar }); onJoined(r.token); }
     catch (ex) { setError(ex.message); setBusy(false); }
   };
   return (
@@ -112,9 +111,9 @@ function Join({ code, room, onJoined }) {
           <button type="button" className="arena-random" onClick={() => { const pool = CHARACTER_KEYS.filter((k) => vipJoin || !isVipCharacter(k)); setAvatar(pool[Math.floor(Math.random() * pool.length)]); setPicking(false); }}>Surprise me</button>
         </Modal>
       )}
-      {room.raid && <PasswordPick code={code} value={pw} onChange={setPw} />}
+      {room.raid && <p className="raid-note">Cipher Raid: you choose your secret password when the host starts the game.</p>}
       {error && <p className="arena-err">{error}</p>}
-      <button className="btn sun lg block" disabled={busy || name.trim().length < 2 || (room.raid && pw.length < 3)}>{busy ? 'Joining…' : 'Enter the arena'}</button>
+      <button className="btn sun lg block" disabled={busy || name.trim().length < 2}>{busy ? 'Joining…' : 'Enter the arena'}</button>
     </form>
   );
 }
@@ -187,7 +186,7 @@ function RoomLobby({ room, isHost, hostToken, reload }) {
         <small>Join at <b>{url.replace(/\/play\/\d+$/, '/game')}</b> with code</small>
         <strong>{room.code.slice(0, 3)} {room.code.slice(3)}</strong>
         <small>{room.timer ? `${room.minutes} min` : 'No time limit'}{room.goal ? ` · first to ${room.goal.toLocaleString('en-US')} points` : ''} · {room.mode === 'team' ? 'Team battle' : room.mode === 'duel' ? 'Duel' : 'Classic'}{room.zone && room.zone !== 'classic' ? ` · ${ZONE[room.zone]?.name}` : ''}{room.raid ? ' · Cipher Raid' : ''}</small>
-        {room.raid && room.me?.pw && <small className="raid-mypw">Your password: <b>{room.me.pw}</b></small>}
+        {room.raid && room.me && <small className="raid-mypw">You choose your secret password when the game starts.</small>}
       </div>
       {room.zone !== 'classic' && room.players.length > 0 && <ZoneTrack room={room} />}
       {room.mode === 'team' ? (
@@ -227,21 +226,26 @@ function Player({ p, score, onRemove }) {
 function Questions({ room, token, reload }) {
   const [qi, setQi] = useState(room.me.answered);
   const [fb, setFb] = useState(null);
+  const [sel, setSel] = useState(-1); // first tap selects, a second tap on the same answer locks it in
   const [me, setMe] = useState(room.me);
   const busy = useRef(false);
+  const guard = useRef(0); // taps right after the screen changes are ignored (no accidental answers)
+  const fresh = () => { guard.current = Date.now() + 400; };
   const [raid, setRaid] = useState(() => (room.me.raid?.stage ? room.me.raid : null));
+  // boxes opened right after an answer move to the next question when done; boxes left open from before a reload do not
+  const raidAfterAnswer = useRef(false);
   const others = room.players.filter((p) => !p.me && (room.mode !== 'team' || p.team !== room.me.team));
   // frozen by someone: wait out the seconds (the server refuses answers meanwhile)
   const [frozen, setFrozen] = useState(0);
   useEffect(() => { if (room.me.frozen_ms > 0) setFrozen(Date.now() + room.me.frozen_ms); }, [room.me.frozen_ms > 0]); // eslint-disable-line react-hooks/exhaustive-deps
   const [, tick] = useState(0);
-  useEffect(() => { if (!frozen) return undefined; const t = setInterval(() => { tick((x) => x + 1); if (Date.now() >= frozen) setFrozen(0); }, 250); return () => clearInterval(t); }, [frozen]);
+  useEffect(() => { if (!frozen) return undefined; const t = setInterval(() => { tick((x) => x + 1); if (Date.now() >= frozen) { setFrozen(0); fresh(); } }, 250); return () => clearInterval(t); }, [frozen]);
   const frozenLeft = frozen ? Math.max(0, Math.ceil((frozen - Date.now()) / 1000)) : 0;
   const lastLocal = useRef(0);
   const q = room.questions[qi];
   // hits from other players change the score on the server
   useEffect(() => { if (!fb && !raid && Date.now() - lastLocal.current > 3000) setMe((m) => ({ ...m, score: room.me.score })); }, [room.me.score]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (!fb && room.me.answered > qi) setQi(room.me.answered); }, [room.me.answered]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!fb && !raid && room.me.answered > qi) { setQi(room.me.answered); setSel(-1); } }, [room.me.answered]); // eslint-disable-line react-hooks/exhaustive-deps
   // music while the questions are on screen (browsers allow sound only after a tap: the first tap starts it)
   useEffect(() => {
     sfxStart(); startMusic();
@@ -255,15 +259,43 @@ function Questions({ room, token, reload }) {
     busy.current = true;
     try {
       const r = await api.post(`/game/${room.code}/answer`, { token, qi, choice: k });
-      setFb({ pick: k, ...r });
+      setFb({ pick: k, ...r }); fresh();
       (r.correct ? sfxRight : sfxWrong)();
       setMe((m) => ({ ...m, score: r.score, streak: r.streak, correct: (m.correct || 0) + (r.correct ? 1 : 0) })); lastLocal.current = Date.now();
-      if (r.raid) { setTimeout(() => setRaid({ stage: 'boxes' }), 650); return; }
-      setTimeout(() => { setFb(null); setQi((i) => i + 1); busy.current = false; if (r.done) reload(); }, r.correct ? 700 : 3000);
-    } catch (e) { busy.current = false; if (e.data?.code === 'frozen') setFrozen(Date.now() + (e.data.ms || 3000)); reload(); }
+      if (r.done) reload();
+    } catch (e) {
+      busy.current = false;
+      // the server expects another question (e.g. after a reload): catch up instead of refusing every answer
+      if (e.data?.code === 'resync' && Number.isInteger(e.data.qi)) { setQi(e.data.qi); setSel(-1); fresh(); }
+      else if (e.data?.code === 'frozen') setFrozen(Date.now() + (e.data.ms || 3000));
+      reload();
+    }
+  };
+  // after the feedback: a right answer goes to the lucky chance, otherwise to the next question — on the player's tap
+  const next = () => {
+    if (!fb || Date.now() < guard.current) return;
+    if (fb.raid) { raidAfterAnswer.current = true; setRaid({ stage: 'boxes' }); fresh(); return; }
+    setFb(null); setSel(-1); setQi((i) => i + 1); busy.current = false; fresh();
+  };
+  const tap = (k) => {
+    if (fb || frozenLeft || busy.current || Date.now() < guard.current) return;
+    if (sel === k) answer(k); else setSel(k);
+  };
+  const raidDone = (sc) => {
+    setRaid(null);
+    if (sc != null) { setMe((m) => ({ ...m, score: sc })); lastLocal.current = Date.now(); }
+    setFb(null); setSel(-1);
+    if (raidAfterAnswer.current) setQi((i) => i + 1);
+    else setQi(room.me.answered);
+    raidAfterAnswer.current = false; busy.current = false; fresh();
   };
   useEffect(() => {
-    const f = (e) => { const k = ['1', '2', '3', '4'].indexOf(e.key); if (k >= 0 && q) answer(k); };
+    const f = (e) => {
+      if (raid) return;
+      const k = ['1', '2', '3', '4'].indexOf(e.key);
+      if (k >= 0 && q && !fb) tap(k);
+      else if (e.key === 'Enter') { if (fb) next(); else if (sel >= 0) tap(sel); }
+    };
     window.addEventListener('keydown', f); return () => window.removeEventListener('keydown', f);
   });
   // more questions are added on the server as the game goes on: fetch them when we reach the end of ours
@@ -278,6 +310,7 @@ function Questions({ room, token, reload }) {
         <span className={`arena-streak ${me.streak >= 2 ? 'hot' : ''}`}>{me.streak >= 2 ? `${me.streak} in a row` : 'Streak 0'}</span>
         <span className="arena-score"><Character kind={me.avatar} size={30} /> {me.score}</span>
       </div>
+      {room.raid && room.me.pw && <div className="raid-mypw-hud">Your password: <b>{room.me.pw}</b></div>}
       {room.zone !== 'classic' && <ZoneTrack room={{ ...room, players: room.players.map((p) => (p.me ? { ...p, correct: Math.max(me.correct || 0, p.correct) } : p)) }} limit={5} compact />}
       {room.mode === 'duel' && room.zone === 'classic' && (() => {
         const opp = room.players.find((p) => !p.me);
@@ -297,12 +330,17 @@ function Questions({ room, token, reload }) {
       </div>
       <div className="arena-opts">
         {q.options.map((o, k) => {
-          const st = fb ? (k === fb.answer ? 'right' : k === fb.pick ? 'wrong' : 'dim') : '';
-          return <button key={k} className={`arena-opt c${k} ${st}`} onClick={() => answer(k)} disabled={!!fb}><span>{L[k]}</span>{o}</button>;
+          const st = fb ? (k === fb.answer ? 'right' : k === fb.pick ? 'wrong' : 'dim') : sel === k ? 'sel' : sel >= 0 ? 'other' : '';
+          return <button key={k} className={`arena-opt c${k} ${st}`} onClick={() => tap(k)} disabled={!!fb} aria-pressed={sel === k}><span>{L[k]}</span>{o}{sel === k && !fb && <em className="arena-lockin">Tap again to lock in</em>}</button>;
         })}
       </div>
+      {fb && !raid && (
+        <div className="arena-next">
+          <button type="button" className={`btn lg block ${fb.correct ? 'sun' : 'primary'}`} onClick={next}>{fb.correct && fb.raid ? 'Lucky chance' : 'Next question'}</button>
+        </div>
+      )}
       {frozenLeft > 0 && !raid && <div className="arena-frozen" role="status"><b>Frozen</b><span>{frozenLeft}</span><small>Someone froze you. Wait…</small></div>}
-      {raid && <RaidPanel code={room.code} token={token} init={raid} others={others} onDone={(sc) => { setRaid(null); if (sc != null) { setMe((m) => ({ ...m, score: sc })); lastLocal.current = Date.now(); } setFb(null); setQi((i) => i + 1); busy.current = false; }} />}
+      {raid && <RaidPanel code={room.code} token={token} init={raid} others={others} onDone={raidDone} />}
       {fb && !raid && <div className={`arena-pop ${fb.correct ? 'ok' : 'no'}`}>{fb.correct ? `+${fb.gain}` : 'Missed'}</div>}
     </div>
   );
