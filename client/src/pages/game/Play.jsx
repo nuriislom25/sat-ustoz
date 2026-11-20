@@ -4,7 +4,7 @@ import { api } from '../../api.js';
 import { useAuth } from '../../context.jsx';
 import { Confetti, Modal, Spinner } from '../../components/ui.jsx';
 import Character, { CHARACTERS, CHARACTER_KEYS, CHARACTER_SETS, isVipCharacter } from '../../components/Character.jsx';
-import { Chips, DUEL_KEY, hostKey, playerKey, store, HERO_KEY } from './GameHub.jsx';
+import { Chips, DUEL_KEY, hostKey, playerKey, store, HERO_KEY, big } from './GameHub.jsx';
 import { BOT_LEVELS, ZONE, ZoneTrack, arenaTheme, isVip } from './zones.jsx';
 import { HitBanner, PasswordGate, RaidPanel } from './Raid.jsx';
 import { musicOn, sfxOn, setPref, startMusic, stopMusic, sfxRight, sfxWrong, sfxTick, sfxWin, sfxStart } from '../../components/gameAudio.js';
@@ -218,7 +218,7 @@ function Player({ p, score, onRemove }) {
       <Character kind={p.avatar} size={56} />
       <b>{p.name}</b>
       {p.is_bot && <span className="bot">BOT</span>}
-      {score && <small>{p.score}</small>}
+      {score && <small>{big(p.score)}</small>}
     </div>
   );
 }
@@ -308,7 +308,7 @@ function Questions({ room, token, reload }) {
         {room.goal ? <span className="arena-progress">Goal {room.goal.toLocaleString('en-US')}</span> : room.timer ? <span className="arena-progress">Q{qi + 1}</span> : null}
         {me.shield && <span className="arena-shield" title="Your next attack is blocked">Shield</span>}
         <span className={`arena-streak ${me.streak >= 2 ? 'hot' : ''}`}>{me.streak >= 2 ? `${me.streak} in a row` : 'Streak 0'}</span>
-        <span className="arena-score"><Character kind={me.avatar} size={30} /> {me.score}</span>
+        <span className="arena-score"><Character kind={me.avatar} size={30} /> {big(me.score)}</span>
       </div>
       {room.zone !== 'classic' && <ZoneTrack room={{ ...room, players: room.players.map((p) => (p.me ? { ...p, correct: Math.max(me.correct || 0, p.correct) } : p)) }} limit={5} compact />}
       {room.mode === 'duel' && room.zone === 'classic' && (() => {
@@ -316,9 +316,9 @@ function Questions({ room, token, reload }) {
         if (!opp) return null;
         const max = Math.max(1, me.score, opp.score);
         return (
-          <div className="arena-duelbar" aria-label={`You ${me.score}, ${opp.name} ${opp.score}`}>
-            <span className="you"><b>You</b><i style={{ width: `${(me.score / max) * 100}%` }} /><em>{me.score}</em></span>
-            <span className="them"><Character kind={opp.avatar} size={28} /><b>{opp.name}</b><i style={{ width: `${(opp.score / max) * 100}%` }} /><em>{opp.score}</em></span>
+          <div className="arena-duelbar" aria-label={`You ${big(me.score)}, ${opp.name} ${big(opp.score)}`}>
+            <span className="you"><b>You</b><i style={{ width: `${(me.score / max) * 100}%` }} /><em>{big(me.score)}</em></span>
+            <span className="them"><Character kind={opp.avatar} size={28} /><b>{opp.name}</b><i style={{ width: `${(opp.score / max) * 100}%` }} /><em>{big(opp.score)}</em></span>
           </div>
         );
       })()}
@@ -359,7 +359,7 @@ function Board({ room, isHost, hostToken, reload }) {
         <div className="arena-teambars">
           {room.teams.map((t) => {
             const top = Math.max(1, ...room.teams.map((x) => x.score));
-            return <div key={t.name} className={`arena-tb ${t.name.toLowerCase()}`}><b>Team {t.name}</b><span><i style={{ width: `${(t.score / top) * 100}%` }} /></span><strong>{t.score}</strong></div>;
+            return <div key={t.name} className={`arena-tb ${t.name.toLowerCase()}`}><b>Team {t.name}</b><span><i style={{ width: `${(t.score / top) * 100}%` }} /></span><strong>{big(t.score)}</strong></div>;
           })}
         </div>
       )}
@@ -370,7 +370,7 @@ function Board({ room, isHost, hostToken, reload }) {
             <span className="pos">{i + 1}</span><Character kind={p.avatar} size={40} />
             <b>{p.name}</b>{p.team && <span className={`arena-tag ${p.team.toLowerCase()}`}>{p.team}</span>}
             <span className="bar"><i style={{ width: `${(p.score / max) * 100}%` }} /></span>
-            <small>{p.frozen ? 'frozen · ' : ''}{p.shield ? 'shield · ' : ''}{room.raid && p.hacks ? `${p.hacks} hack${p.hacks > 1 ? 's' : ''} · ` : ''}{p.correct} right</small><strong>{p.score}</strong>
+            <small>{p.frozen ? 'frozen · ' : ''}{p.shield ? 'shield · ' : ''}{room.raid && p.hacks ? `${p.hacks} hack${p.hacks > 1 ? 's' : ''} · ` : ''}{p.correct} right</small><strong>{big(p.score)}</strong>
           </li>
         ))}
       </ol>
@@ -399,7 +399,7 @@ function Results({ room, isHost }) {
               <Character kind={p.avatar} size={38} />
               <b className="nm">{p.name}{p.team && <span className={`arena-tag ${p.team.toLowerCase()}`}>{p.team}</span>}</b>
               <span className={`ring ${tone}`} style={{ '--p': pct }}><i>{pct}%</i></span>
-              <strong className="cr">{p.score}<small>credits</small></strong>
+              <strong className="cr">{big(p.score)}<small>credits</small></strong>
               <span className="split" aria-label={`${p.correct} right, ${wrong} wrong`}>
                 {p.answered > 0 ? (<>
                   <span className="ok" style={{ flexGrow: p.correct || 0.001 }}>{p.correct > 0 ? `✓ ${p.correct}` : ''}</span>
@@ -427,14 +427,14 @@ function Podium({ room, isHost }) {
     <div className="arena-end">
       <Confetti />
       <h1>{title}</h1>
-      {me && <p className="arena-mine">You: place {room.players.indexOf(me) + 1} · {me.score} points · {me.correct} correct · best streak {me.best_streak}{room.raid ? ` · ${me.hacks || 0} hacks, ${me.stolen || 0} credits stolen` : ''}</p>}
+      {me && <p className="arena-mine">You: place {room.players.indexOf(me) + 1} · {big(me.score)} points · {me.correct} correct · best streak {me.best_streak}{room.raid ? ` · ${me.hacks || 0} hacks, ${big(me.stolen || 0)} credits stolen` : ''}</p>}
       <div className="arena-podium">
         {order.map((p) => {
           const place = top.indexOf(p) + 1;
           return (
             <div key={p.id} className={`arena-step s${place}`}>
               <Character kind={p.avatar} size={place === 1 ? 110 : 84} mood="win" />
-              <b>{p.name}</b><small>{p.score} pts</small>
+              <b>{p.name}</b><small>{big(p.score)} pts</small>
               <div className="arena-block">{place}</div>
             </div>
           );
@@ -470,6 +470,7 @@ export function JoinCode() {
 /* ---------- host screen (projector): ranking left, live feed right, total credits, big clock ---------- */
 const short = (n) => {
   const a = Math.abs(n);
+  if (!Number.isFinite(n) || a >= 1e9) return big(n, 0);
   if (a >= 1e6) return `${(n / 1e6).toFixed(a >= 1e7 ? 0 : 1)}M`;
   if (a >= 1e5) return `${Math.round(n / 1e3)}K`;
   if (a >= 1e4) return `${(n / 1e3).toFixed(1)}K`;
@@ -477,10 +478,12 @@ const short = (n) => {
 };
 const ord = (n) => { const s = ['th', 'st', 'nd', 'rd']; const v = n % 100; return s[(v - 20) % 10] || s[v] || s[0]; };
 /** A number that rolls up to its new value. */
-function Rolling({ value, format = (x) => x.toLocaleString('en-US') }) {
+function Rolling({ value, format = (x) => big(x) }) {
   const [shown, setShown] = useState(value);
   const from = useRef(value);
   useEffect(() => {
+    // huge or endless values: no roll-up animation (it cannot count that far smoothly)
+    if (!Number.isFinite(value) || !Number.isFinite(from.current) || Math.abs(value) > 1e15) { setShown(value); from.current = value; return undefined; }
     const start = from.current; const t0 = performance.now(); let raf;
     const step = (t) => { const k = Math.min(1, (t - t0) / 900); const v = Math.round(start + (value - start) * (1 - (1 - k) ** 3)); setShown(v); if (k < 1) raf = requestAnimationFrame(step); else from.current = value; };
     raf = requestAnimationFrame(step);
@@ -491,7 +494,7 @@ function Rolling({ value, format = (x) => x.toLocaleString('en-US') }) {
 const FEED_VERB = { steal: 'took', hack: 'hacked', swap: 'swapped with', freeze: 'froze', blocked: 'blocked', double: 'doubled to', triple: 'tripled to', jackpot: 'hit the jackpot' };
 function FeedLine({ e }) {
   if (!e.kind) return <li className="hb-ev"><span className="hb-ev-t">{e.text}</span></li>;
-  const amt = e.amount ? <b className="hb-amt">{e.amount.toLocaleString('en-US')}</b> : null;
+  const amt = e.amount ? <b className="hb-amt">{big(e.amount)}</b> : null;
   let body;
   if (e.kind === 'steal' || e.kind === 'hack') body = <>{e.kind === 'hack' ? 'hacked' : 'just took'} {amt} credits from <b>{e.b_name}</b></>;
   else if (e.kind === 'swap') body = <>swapped credits with <b>{e.b_name}</b></>;

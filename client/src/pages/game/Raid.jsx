@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../../api.js';
 import Character from '../../components/Character.jsx';
 import { sfxRight, sfxWrong } from '../../components/gameAudio.js';
+import { big } from './GameHub.jsx';
 
 /** Cipher Raid: the player's secret password, mystery boxes after a right answer, and the hack itself. */
 
@@ -116,7 +117,7 @@ export function RaidPanel({ code, token, init, onDone, others = [] }) {
   const live = sec <= 6 ? 60 - 10 * (sec / 6) : sec <= 20 ? 50 - 30 * ((sec - 6) / 14) : 20;
   const label = (t) => BOX[t] || '';
   const giftTitle = { jackpot: 'Jackpot', double: 'Double!', triple: 'Triple!', shield: 'Shield on', bonus: 'Points' }[res?.kind] || 'Points';
-  const giftText = res?.kind === 'shield' ? 'The next steal, swap, freeze or hack on you is blocked.' : res?.kind === 'double' || res?.kind === 'triple' ? `Your score: ${res.score}` : `+${res?.amt} points`;
+  const giftText = res?.kind === 'shield' ? 'The next steal, swap, freeze or hack on you is blocked.' : res?.kind === 'double' || res?.kind === 'triple' ? `Your score: ${big(res.score)}` : `+${big(res?.amt)} points`;
   const again = <p className="raid-again">Tap again to confirm</p>;
 
   return (
@@ -146,7 +147,7 @@ export function RaidPanel({ code, token, init, onDone, others = [] }) {
               <>
                 <div className="box-targets">
                   {(res.targets?.length ? res.targets : others).map((o) => (
-                    <button key={o.id} type="button" className={sel === `t${o.id}` ? 'sel' : ''} onClick={() => twice(`t${o.id}`, () => target(o.id))}><Character kind={o.avatar} size={40} /><b>{o.name}</b><span>{o.score}</span></button>
+                    <button key={o.id} type="button" className={sel === `t${o.id}` ? 'sel' : ''} onClick={() => twice(`t${o.id}`, () => target(o.id))}><Character kind={o.avatar} size={40} /><b>{o.name}</b><span>{big(o.score)}</span></button>
                   ))}
                 </div>
                 {sel && again}
@@ -154,8 +155,8 @@ export function RaidPanel({ code, token, init, onDone, others = [] }) {
             ) : (
               <p className={`raid-gain ${out.blocked ? 'miss' : ''}`}>
                 {out.blocked ? `${out.victim.name} had a shield. Blocked!`
-                  : out.kind === 'steal' ? (out.amt ? `You took ${out.amt} points from ${out.victim.name}` : `${out.victim.name} had nothing to take`)
-                    : out.kind === 'swap' ? `You swapped scores with ${out.victim.name}: now ${out.score}`
+                  : out.kind === 'steal' ? (out.amt ? `You took ${big(out.amt)} points from ${out.victim.name}` : `${out.victim.name} had nothing to take`)
+                    : out.kind === 'swap' ? `You swapped scores with ${out.victim.name}: now ${big(out.score)}`
                       : `${out.victim.name} is frozen for ${out.seconds} seconds`}
               </p>
             )}
@@ -171,9 +172,9 @@ export function RaidPanel({ code, token, init, onDone, others = [] }) {
               ))}
             </div>
             {!out && (sel ? again : res.action === 'swap' ? <p className="raid-again soft">Right password = your scores swap</p> : res.action === 'freeze' ? <p className="raid-again soft">Right password = they are frozen</p> : <p className="raid-meter">Steal now: <b>{Math.round(live)}%</b> of their credits <small>(drops the longer you wait)</small></p>)}
-            {out && res.action === 'swap' && <p className={`raid-gain ${out.found ? '' : 'miss'}`}>{out.blocked ? `${res.victim.name} had a shield. Blocked!` : out.found ? `Code cracked! You swapped scores with ${res.victim.name}: now ${out.score}` : 'Wrong password. No swap.'}</p>}
+            {out && res.action === 'swap' && <p className={`raid-gain ${out.found ? '' : 'miss'}`}>{out.blocked ? `${res.victim.name} had a shield. Blocked!` : out.found ? `Code cracked! You swapped scores with ${res.victim.name}: now ${big(out.score)}` : 'Wrong password. No swap.'}</p>}
             {out && res.action === 'freeze' && <p className={`raid-gain ${out.found && !out.blocked ? '' : 'miss'}`}>{out.blocked ? `${res.victim.name} had a shield. Blocked!` : out.found ? `Code cracked! ${res.victim.name} is frozen for ${out.freeze} seconds` : 'Wrong password. No freeze.'}</p>}
-            {out && res.action !== 'swap' && res.action !== 'freeze' && <p className={`raid-gain ${out.found && out.amt ? '' : 'miss'}`}>{out.blocked ? `${res.victim.name} had a shield. Blocked!` : out.found ? (out.amt ? `Access! You took ${out.amt} credits (${out.pct}%) in ${out.seconds}s` : 'Access, but they had nothing left') : 'Wrong password. Nothing stolen.'}</p>}
+            {out && res.action !== 'swap' && res.action !== 'freeze' && <p className={`raid-gain ${out.found && out.amt ? '' : 'miss'}`}>{out.blocked ? `${res.victim.name} had a shield. Blocked!` : out.found ? (out.amt ? `Access! You took ${big(out.amt)} credits (${out.pct}%) in ${out.seconds}s` : 'Access, but they had nothing left') : 'Wrong password. Nothing stolen.'}</p>}
           </>
         )}
         {done && <button type="button" className="btn sun lg block" onClick={moveOn}>Next question</button>}
@@ -197,10 +198,10 @@ export function HitBanner({ hit }) {
   return (
     <div className={`raid-hit ${k === 'blocked' ? 'good' : ''}`} role="status">
       {k === 'blocked' ? <>Your shield blocked <b>{shown.by}</b></>
-        : k === 'steal' ? <><b>{shown.by}</b> stole <b>{shown.amt}</b> points from you</>
+        : k === 'steal' ? <><b>{shown.by}</b> stole <b>{big(shown.amt)}</b> points from you</>
           : k === 'swap' ? <><b>{shown.by}</b> swapped scores with you</>
             : k === 'freeze' ? <><b>{shown.by}</b> froze you for 10 seconds</>
-              : <><b>{shown.by}</b> hacked you and took <b>{shown.amt}</b> credits</>}
+              : <><b>{shown.by}</b> hacked you and took <b>{big(shown.amt)}</b> credits</>}
     </div>
   );
 }

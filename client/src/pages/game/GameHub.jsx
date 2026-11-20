@@ -23,6 +23,18 @@ export function Chips({ value, onChange, options, label, dark }) {
 }
 export const DUEL_KEY = 'arena-duel';
 export const HERO_KEY = 'arena-hero';
+/** Credits of any size: 1,234,567 → "1,234,567"; 4.5e12 → "4.5T"; 7e40 → "7.0e40"; Infinity → "∞". */
+const BIG = ['K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'Dc'];
+export function big(n, full = 1e12) {
+  const v = Number(n) || 0;
+  if (!Number.isFinite(v)) return v < 0 ? '-∞' : '∞';
+  const a = Math.abs(v);
+  if (a < full) return Math.round(v).toLocaleString('en-US');
+  const k = Math.floor(Math.log10(a) / 3);
+  if (k <= BIG.length) { const x = v / 10 ** (3 * k); return `${x.toFixed(Math.abs(x) >= 100 ? 0 : 1)}${BIG[k - 1]}`; }
+  return v.toExponential(1).replace('+', '');
+}
+
 export const store = {
   get: (k) => { try { return localStorage.getItem(k) || ''; } catch { return ''; } },
   set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } },

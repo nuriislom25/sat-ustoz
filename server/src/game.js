@@ -67,6 +67,11 @@ ALTER TABLE game_events ADD COLUMN IF NOT EXISTS a_avatar TEXT NOT NULL DEFAULT 
 ALTER TABLE game_events ADD COLUMN IF NOT EXISTS b_name TEXT NOT NULL DEFAULT '';
 ALTER TABLE game_events ADD COLUMN IF NOT EXISTS b_avatar TEXT NOT NULL DEFAULT '';
 ALTER TABLE game_events ADD COLUMN IF NOT EXISTS amount BIGINT NOT NULL DEFAULT 0;
+-- scores have no upper limit (Double / Triple grow without end): NUMERIC holds any size
+ALTER TABLE game_players ALTER COLUMN score TYPE NUMERIC;
+ALTER TABLE game_players ALTER COLUMN stolen TYPE NUMERIC;
+ALTER TABLE game_players ALTER COLUMN hit_amt TYPE NUMERIC;
+ALTER TABLE game_events ALTER COLUMN amount TYPE NUMERIC;
 `);
 }
 
@@ -117,7 +122,6 @@ function rollBoxes(raid) {
 }
 const TARGETED = new Set(['steal', 'swap', 'freeze']);
 const FREEZE_MS = 10000;
-const SCORE_CAP = 1000000000;
 // look-alike letters from other alphabets (Cyrillic, Greek) → Latin
 const LOOKALIKE = { 'а': 'a', 'с': 'c', 'е': 'e', 'о': 'o', 'р': 'p', 'х': 'x', 'у': 'y', 'к': 'k', 'н': 'h', 'һ': 'h', 'ѕ': 's', 'і': 'i', 'ӏ': 'l', 'ⅼ': 'l', 'ı': 'i', 'ɑ': 'a', 'ϲ': 'c', 'ο': 'o', 'ρ': 'p', 'ε': 'e', 'η': 'h', 'ℓ': 'l', 'ⓒ': 'c' };
 /** "Charles" written in any font: 𝘊𝘩𝘢𝘳𝘭𝘦𝘴, Ｃｈａｒｌｅｓ, C h a r l e s, Сharles (Cyrillic С), C̲h̲a̲r̲l̲e̲s̲… */
@@ -126,9 +130,15 @@ export function isCharles(name) {
   const latin = Array.from(flat, (ch) => LOOKALIKE[ch] || ch).join('').normalize('NFKC').replace(/[^a-z]/g, '');
   return latin === 'charles';
 }
+/** Swap two players' scores inside the database (exact at any size). Returns both old scores as text and number. */
+async function swapScores(aId, bId) {
+  const r = await db.one('SELECT a.score::text AS a, b.score::text AS b, a.score AS an, b.score AS bn FROM game_players a, game_players b WHERE a.id = ? AND b.id = ?', [aId, bId]);
+  await db.run('UPDATE game_players SET score = CASE WHEN id = ? THEN ?::numeric ELSE ?::numeric END WHERE id IN (?, ?)', [aId, r.b, r.a, aId, bId]);
+  return { a: r.a, b: r.b, aNum: r.an, bNum: r.bn };
+}
 /** Host-screen feed: plain text plus who did what to whom, so the host board can draw it (avatars, names, amount). */
 const logEvent = (code, text, m = {}) => db.run('INSERT INTO game_events (code, text, kind, a_name, a_avatar, b_name, b_avatar, amount) VALUES (?,?,?,?,?,?,?,?)',
-  [code, String(text).slice(0, 160), m.kind || '', m.a?.name || '', m.a?.avatar || '', m.b?.name || '', m.b?.avatar || '', Math.round(m.amt || 0)]).catch(() => {});
+  [code, String(text).slice(0, 160), m.kind || '', m.a?.name || '', m.a?.avatar || '', m.b?.name || '', m.b?.avatar || '', String(m.amt ?? 0)]).catch(() => {});
 const parse = (s) => { try { return s ? JSON.parse(s) : null; } catch { return null; } };
 
 /** What a raid player may see of their pending box / hack step (never the real password). */
@@ -511,12 +521,12 @@ export function registerGame(app, { h, bad, accessFor }) {
       return res.json({ kind, pct: box.pct || 15, boxes: view, targets: targets.map((o) => ({ id: o.id, name: o.name, avatar: o.avatar, score: o.score })) });
     }
     if (kind === 'double' || kind === 'triple') {
-      // scores stop at one billion: Double / Triple grow fast and the score column holds about two billion
-      const gain = Math.max(0, Math.min(p.score * (kind === 'double' ? 1 : 2), SCORE_CAP - p.score));
-      await db.run('UPDATE game_players SET score = score + ? WHERE id = ?', [gain, p.id]);
-      if (gain >= 200) logEvent(room.code, `${p.name} got ${kind === 'double' ? 'DOUBLE' : 'TRIPLE'}: ${p.score} → ${p.score + gain}`, { kind, a: p, amt: p.score + gain });
+      // no upper limit: the score is multiplied in the database (exact at any size)
+      const r = await db.one(`UPDATE game_players SET score = score * ${kind === 'double' ? 2 : 3} WHERE id = ? RETURNING score, score::text AS exact`, [p.id]);
+      const gain = r.score - p.score;
+      if (gain >= 200) logEvent(room.code, `${p.name} got ${kind === 'double' ? 'DOUBLE' : 'TRIPLE'}: now ${r.exact}`, { kind, a: p, amt: r.exact });
       await finishIfDone(room);
-      return res.json({ kind, amt: gain, score: p.score + gain, boxes: view });
+      return res.json({ kind, amt: gain, score: r.score, boxes: view });
     }
     if (kind === 'shield') {
       await db.run('UPDATE game_players SET shield = true WHERE id = ?', [p.id]);
@@ -557,7 +567,7 @@ export function registerGame(app, { h, bad, accessFor }) {
       await db.run('UPDATE game_players SET pending = ? WHERE id = ?', [JSON.stringify({ hack }), p.id]);
       return res.json({ kind: t.kind, code: true, victim, options });
     }
-    const hit = (kind, amt) => db.run('UPDATE game_players SET hit_by = ?, hit_amt = ?, hit_kind = ?, hit_seq = hit_seq + 1 WHERE id = ?', [p.name, amt, kind, v.id]);
+    const hit = (kind, amt) => db.run('UPDATE game_players SET hit_by = ?, hit_amt = ?::numeric, hit_kind = ?, hit_seq = hit_seq + 1 WHERE id = ?', [p.name, String(amt ?? 0), kind, v.id]);
     // a shield blocks one attack
     const blocked = await db.one('UPDATE game_players SET shield = false WHERE id = ? AND shield RETURNING id', [v.id]);
     if (blocked) {
@@ -566,22 +576,23 @@ export function registerGame(app, { h, bad, accessFor }) {
       return res.json({ kind: t.kind, blocked: true, victim, score: p.score });
     }
     if (t.kind === 'steal') {
-      const amt = Math.min(v.score, Math.floor((v.score * t.pct) / 100));
-      if (amt > 0) {
-        await db.run('UPDATE game_players SET score = GREATEST(score - ?, 0), hacked = hacked + 1 WHERE id = ?', [amt, v.id]);
-        await db.run('UPDATE game_players SET score = score + ?, stolen = stolen + ? WHERE id = ?', [amt, amt, p.id]);
-        await hit('steal', amt);
-        logEvent(room.code, `${p.name} stole ${amt} from ${v.name}`, { kind: 'steal', a: p, b: v, amt });
+      const take = await db.one(`SELECT floor(score * ? / 100) AS amt, floor(score * ? / 100)::text AS exact FROM game_players WHERE id = ?`, [t.pct, t.pct, v.id]);
+      let mine = p.score;
+      if (take.amt > 0) {
+        await db.run('UPDATE game_players SET score = GREATEST(score - ?::numeric, 0), hacked = hacked + 1 WHERE id = ?', [take.exact, v.id]);
+        mine = (await db.one('UPDATE game_players SET score = score + ?::numeric, stolen = stolen + ?::numeric WHERE id = ? RETURNING score', [take.exact, take.exact, p.id])).score;
+        await hit('steal', take.exact);
+        logEvent(room.code, `${p.name} stole ${take.exact} from ${v.name}`, { kind: 'steal', a: p, b: v, amt: take.exact });
       }
       await finishIfDone(room);
-      return res.json({ kind: 'steal', amt, pct: t.pct, victim, score: p.score + amt });
+      return res.json({ kind: 'steal', amt: take.amt, pct: t.pct, victim, score: mine });
     }
     if (t.kind === 'swap') {
-      await db.run('UPDATE game_players SET score = CASE WHEN id = ?::int THEN ?::int ELSE ?::int END WHERE id IN (?, ?)', [p.id, v.score, p.score, p.id, v.id]);
-      await hit('swap', p.score);
-      logEvent(room.code, `${p.name} swapped scores with ${v.name} (${p.score} ↔ ${v.score})`, { kind: 'swap', a: p, b: v, amt: v.score });
+      const sw = await swapScores(p.id, v.id);
+      await hit('swap', sw.a);
+      logEvent(room.code, `${p.name} swapped scores with ${v.name} (${sw.a} ↔ ${sw.b})`, { kind: 'swap', a: p, b: v, amt: sw.b });
       await finishIfDone(room);
-      return res.json({ kind: 'swap', amt: v.score - p.score, victim, score: v.score });
+      return res.json({ kind: 'swap', amt: sw.bNum - sw.aNum, victim, score: sw.bNum });
     }
     // freeze
     await db.run(`UPDATE game_players SET frozen_until = now() + interval '${FREEZE_MS / 1000} seconds' WHERE id = ?`, [v.id]);
@@ -616,23 +627,24 @@ export function registerGame(app, { h, bad, accessFor }) {
     }
     if (hack.action === 'swap') {
       if (!found) return res.json({ action: 'swap', found: false, amt: 0, victim: hack.victim, score: p.score, seconds: Math.round(seconds * 10) / 10 });
-      const me2 = await db.one('SELECT score FROM game_players WHERE id = ?', [p.id]);
-      await db.run('UPDATE game_players SET score = CASE WHEN id = ?::int THEN ?::int ELSE ?::int END WHERE id IN (?, ?)', [p.id, v.score, me2.score, p.id, v.id]);
-      await db.run("UPDATE game_players SET hit_by = ?, hit_amt = ?, hit_kind = 'swap', hit_seq = hit_seq + 1 WHERE id = ?", [p.name, me2.score, v.id]);
-      logEvent(room.code, `${p.name} cracked ${v.name}'s password and swapped scores (${me2.score} ↔ ${v.score})`, { kind: 'swap', a: p, b: v, amt: v.score });
+      const sw = await swapScores(p.id, v.id);
+      await db.run("UPDATE game_players SET hit_by = ?, hit_amt = ?::numeric, hit_kind = 'swap', hit_seq = hit_seq + 1 WHERE id = ?", [p.name, sw.a, v.id]);
+      logEvent(room.code, `${p.name} cracked ${v.name}'s password and swapped scores (${sw.a} ↔ ${sw.b})`, { kind: 'swap', a: p, b: v, amt: sw.b });
       await finishIfDone(room);
-      return res.json({ action: 'swap', found: true, amt: v.score - me2.score, victim: hack.victim, score: v.score, seconds: Math.round(seconds * 10) / 10 });
+      return res.json({ action: 'swap', found: true, amt: sw.bNum - sw.aNum, victim: hack.victim, score: sw.bNum, seconds: Math.round(seconds * 10) / 10 });
     }
     let amt = 0; let pct = 0;
     if (found) {
       pct = hackShare(seconds);
-      amt = Math.min(v.score, Math.floor(v.score * pct));
+      const take = await db.one('SELECT floor(score * ?::numeric) AS amt, floor(score * ?::numeric)::text AS exact FROM game_players WHERE id = ?', [pct.toFixed(6), pct.toFixed(6), v.id]);
+      amt = take.amt;
       if (amt > 0) {
-        await db.run("UPDATE game_players SET score = GREATEST(score - ?, 0), hacked = hacked + 1, hit_by = ?, hit_amt = ?, hit_kind = 'hack', hit_seq = hit_seq + 1 WHERE id = ?", [amt, p.name, amt, v.id]);
-        logEvent(room.code, `${p.name} hacked ${v.name} for ${amt}`, { kind: 'hack', a: p, b: v, amt });
-        await db.run('UPDATE game_players SET score = score + ?, hacks = hacks + 1, stolen = stolen + ? WHERE id = ?', [amt, amt, p.id]);
+        await db.run("UPDATE game_players SET score = GREATEST(score - ?::numeric, 0), hacked = hacked + 1, hit_by = ?, hit_amt = ?::numeric, hit_kind = 'hack', hit_seq = hit_seq + 1 WHERE id = ?", [take.exact, p.name, take.exact, v.id]);
+        logEvent(room.code, `${p.name} hacked ${v.name} for ${take.exact}`, { kind: 'hack', a: p, b: v, amt: take.exact });
+        const r = await db.one('UPDATE game_players SET score = score + ?::numeric, hacks = hacks + 1, stolen = stolen + ?::numeric WHERE id = ? RETURNING score', [take.exact, take.exact, p.id]);
+        return res.json({ found, amt, pct: Math.round(pct * 100), seconds: Math.round(seconds * 10) / 10, victim: hack.victim, score: r.score });
       }
     }
-    res.json({ found, amt, pct: Math.round(pct * 100), seconds: Math.round(seconds * 10) / 10, victim: hack.victim, score: p.score + amt });
+    res.json({ found, amt, pct: Math.round(pct * 100), seconds: Math.round(seconds * 10) / 10, victim: hack.victim, score: p.score });
   }));
 }
