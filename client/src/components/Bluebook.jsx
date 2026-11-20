@@ -166,8 +166,8 @@ export function BBSplit({ left, right, id, tabs }) {
 
 /**
  * Highlights and notes in the passage (Bluebook "Highlights & Notes").
- * In highlight mode, selecting text wraps it in a yellow mark; tapping a mark opens a small box to add a note
- * or remove the highlight. Marks and notes stay with the passage for the whole test, also when the student moves
+ * In highlight mode, selecting text wraps it in a yellow mark at once (nothing to confirm); tapping a mark opens a
+ * small bar to add a note or remove the highlight. Marks and notes stay with the passage for the whole test, also when the student moves
  * to another question and comes back (kept per passage text in memory).
  */
 const HL_STORE = new Map();
@@ -176,7 +176,10 @@ export function Highlightable({ on, children }) {
   const ref = useRef(null);
   const wrap = useRef(null);
   const id = useRef('');
-  const [pop, setPop] = useState(null); // { mark, x, y, note }
+  // tapping a highlight opens a small bar: add a note or remove it. Highlighting itself needs no extra step.
+  const [pop, setPop] = useState(null); // { mark, x, y, note, writing }
+  const popRef = useRef(null);
+  const marked = useRef(0); // the click that ends a new highlight must not open the bar
   useLayoutEffect(() => {
     const el = ref.current; if (!el) return;
     id.current = hashText(el.textContent || '');
@@ -184,21 +187,32 @@ export function Highlightable({ on, children }) {
     if (saved) el.innerHTML = saved;
   }, []);
   const keep = () => { if (ref.current && id.current) HL_STORE.set(id.current, ref.current.innerHTML); };
+  // a note is written straight into the highlight (nothing to save)
+  const writeNote = (m, text) => {
+    const note = text.trim();
+    if (note) { m.dataset.note = note; m.title = note; m.classList.add('noted'); } else { delete m.dataset.note; m.removeAttribute('title'); m.classList.remove('noted'); }
+    keep();
+  };
   const openPop = (m) => {
     const box = wrap.current.getBoundingClientRect(); const r = m.getBoundingClientRect();
-    setPop({ mark: m, x: Math.max(8, Math.min(r.left - box.left, box.width - 268)), y: r.bottom - box.top + wrap.current.scrollTop + 6, note: m.dataset.note || '' });
+    setPop({ mark: m, x: Math.max(8, Math.min(r.left - box.left, box.width - 268)), y: r.bottom - box.top + wrap.current.scrollTop + 6, note: m.dataset.note || '', writing: !!m.dataset.note });
   };
+  // a tap anywhere else closes the bar
+  useEffect(() => {
+    if (!pop) return undefined;
+    const f = (e) => { if (!popRef.current?.contains(e.target) && !e.target.closest?.('mark.bb-hl')) setPop(null); };
+    document.addEventListener('pointerdown', f);
+    return () => document.removeEventListener('pointerdown', f);
+  }, [pop]);
   const onUp = () => {
     if (!on) return;
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || !ref.current?.contains(sel.anchorNode)) return;
     const range = sel.getRangeAt(0);
-    let first = null;
     try {
       const mark = document.createElement('mark');
       mark.className = 'bb-hl';
       range.surroundContents(mark);
-      first = mark;
     } catch {
       // selection crosses paragraphs: highlight each text node inside it
       const walker = document.createTreeWalker(range.commonAncestorContainer, NodeFilter.SHOW_TEXT);
@@ -210,34 +224,39 @@ export function Highlightable({ on, children }) {
         if (n === range.startContainer) r.setStart(n, range.startOffset);
         if (n === range.endContainer) r.setEnd(n, range.endOffset);
         const m = document.createElement('mark'); m.className = 'bb-hl';
-        try { r.surroundContents(m); first ||= m; } catch { /* skip odd nodes */ }
+        try { r.surroundContents(m); } catch { /* skip odd nodes */ }
       });
     }
     sel.removeAllRanges();
-    keep();
-    if (first) openPop(first);
+    marked.current = Date.now();
+    keep(); // saved at once — no popup
   };
   const onClick = (e) => {
     const m = e.target.closest('mark.bb-hl');
-    if (m) openPop(m);
-  };
-  const save = () => {
-    const m = pop.mark; const note = pop.note.trim();
-    if (note) { m.dataset.note = note; m.title = note; m.classList.add('noted'); } else { delete m.dataset.note; m.removeAttribute('title'); m.classList.remove('noted'); }
-    keep(); setPop(null);
+    if (m && Date.now() - marked.current > 400) openPop(m);
   };
   const remove = () => { const m = pop.mark; if (m.isConnected) m.replaceWith(...m.childNodes); keep(); setPop(null); };
   return (
     <div className="bb-hlwrap" ref={wrap}>
       <div ref={ref} className={`bb-passage ${on ? 'hl-on' : ''}`} onMouseUp={onUp} onTouchEnd={onUp} onClick={onClick}>{children}</div>
       {pop && (
-        <div className="bb-notepop" style={{ left: pop.x, top: pop.y }} role="dialog" aria-label="Note on the highlighted text">
-          <textarea rows={3} autoFocus value={pop.note} placeholder="Add a note (optional)" maxLength={500} onChange={(e) => setPop((p) => ({ ...p, note: e.target.value }))}
-            onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) save(); if (e.key === 'Escape') setPop(null); }} />
-          <div className="row between" style={{ gap: 6 }}>
-            <button type="button" className="bb-np-del" onClick={remove}>Remove highlight</button>
-            <button type="button" className="bb-np-save" onClick={save}>Save</button>
-          </div>
+        <div ref={popRef} className={`bb-notepop ${pop.writing ? '' : 'bar'}`} style={{ left: pop.x, top: pop.y }} role="dialog" aria-label="Highlight">
+          {pop.writing ? (
+            <>
+              <textarea rows={3} autoFocus value={pop.note} placeholder="Your note" maxLength={500}
+                onChange={(e) => { const v = e.target.value; setPop((p) => ({ ...p, note: v })); writeNote(pop.mark, v); }}
+                onKeyDown={(e) => { if (e.key === 'Escape' || (e.key === 'Enter' && (e.metaKey || e.ctrlKey))) setPop(null); }} />
+              <div className="row between" style={{ gap: 6 }}>
+                <button type="button" className="bb-np-del" onClick={remove}>Remove highlight</button>
+                <button type="button" className="bb-np-save" onClick={() => setPop(null)}>Close</button>
+              </div>
+            </>
+          ) : (
+            <div className="row" style={{ gap: 6 }}>
+              <button type="button" className="bb-np-save" onClick={() => setPop((p) => ({ ...p, writing: true }))}>Add note</button>
+              <button type="button" className="bb-np-del" onClick={remove}>Remove highlight</button>
+            </div>
+          )}
         </div>
       )}
     </div>

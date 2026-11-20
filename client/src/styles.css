@@ -4295,3 +4295,5 @@ a.mr-lesson:hover { text-decoration: none; border-color: var(--m); }
   .qp-page .page-actions .btn { width: 100%; justify-content: center; white-space: nowrap; }
   .qp-jump { top: 56px; }
 }
+.bb-notepop.bar { width: auto; padding: 6px; }
+.bb-notepop.bar .row { flex-wrap: nowrap; }
