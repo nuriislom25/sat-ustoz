@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "node --watch --no-warnings --env-file-if-exists=.env src/index.js",
     "start": "node --no-warnings --env-file-if-exists=.env src/index.js",
-    "seed": "node --no-warnings --env-file-if-exists=.env src/seed.js"
+    "seed": "node --no-warnings --env-file-if-exists=.env src/seed.js",
+    "set-password": "node --no-warnings --env-file-if-exists=.env src/set-password.js",
+    "test:security": "node --no-warnings test/security.test.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.11",

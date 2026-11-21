@@ -69,7 +69,10 @@ npm run build
 npm start                     # → http://localhost:4000
 ```
 
-Logins: teacher `master` / `master123` · demo student `shukurullo` / `student123`.
+On an empty **local** database two demo accounts are created (teacher `master`, student `shukurullo`; see `server/src/seed.js`).
+Their default passwords work only on `localhost` — the server refuses them on any public host. On a server set
+`MASTER_PASSWORD` (or `NODE_ENV=production` and sign up with `MASTER_EMAIL`), and change a password any time with
+`npm run set-password --prefix server -- <login>`.
 
 Development with hot reload: `npm run dev` → http://localhost:5173
 
@@ -77,14 +80,23 @@ Development with hot reload: `npm run dev` → http://localhost:5173
 
 ## Configuration — `server/.env`
 
+Copy `server/.env.example` to `server/.env`. All of these are **server-only**; the browser bundle has no environment
+variables (the only public values — Google client ID, bot username, prices — come from `/api/config`).
+
 | Variable | Meaning |
 |---|---|
-| `GOOGLE_CLIENT_ID` | Enables “Sign in with Google”. Public OAuth Web client ID (origins: http://localhost:4000, http://localhost:5173). |
-| `DATABASE_URL` | Supabase Postgres (session pooler). Leave commented to use the built-in local database in `server/data/pg`. |
+| `NODE_ENV` | Set to `production` on the server (no demo accounts are created) |
 | `PORT` | Default 4000 |
-| `MASTER_LOGIN`, `MASTER_PASSWORD` | First teacher account (used only when the database is empty) |
-| `JWT_SECRET` | Optional; generated automatically |
-| `TELEGRAM_BOT` | Payment bot username (next stage) |
+| `SITE_URL` | Public address, e.g. `https://www.ustozsat.uz` (links in messages) |
+| `DATABASE_URL` | Postgres connection string. Leave unset to use the built-in local database in `server/data/pg` |
+| `JWT_SECRET` | Session signing key (48+ random bytes). Generated and kept in the database when unset |
+| `MASTER_LOGIN`, `MASTER_PASSWORD` | First teacher account, created only when the database is empty |
+| `MASTER_EMAIL` | On an empty hosted database, the first sign-up with this email becomes the teacher |
+| `GOOGLE_CLIENT_ID` | “Sign in with Google” (public OAuth client ID; no client secret is used) |
+| `TELEGRAM_BOT` | Bot username (the bot token is entered in the teacher panel and stored server-side) |
+| `BUNNY_API_KEY`, `BUNNY_LIBRARY_ID`, `BUNNY_TOKEN_KEY` | Video hosting (Bunny Stream) |
+| `GIPHY_API_KEY`, `OPENVERSE_TOKEN` | Optional picture / GIF search for teachers |
+| `CRON_SECRET` | Protects `/api/cron/drip` when called by a scheduler |
 
 Tables are created automatically on start. Row Level Security is enabled on every table, so nothing is readable through Supabase’s public REST API — only this server can access the data.
 
@@ -101,6 +113,18 @@ server/src/  index.js (REST API) · db.js (Postgres/PGlite + schema) · auth.js 
              placement/ (placement test engine + JSON) · course/ (modules, lessons, level checks) · content/ (module JSONs)
 client/src/  pages/student · pages/master · pages/quiz · pages/placement · pages/lesson · components/RoadmapMap.jsx · components/Rich.jsx
 ```
+
+## Tests
+
+```bash
+npm run test:security --prefix server   # attacks a throw-away local copy: auth gate, roles, tokens, IDOR, leaks, limits
+npm run build                           # production build of the website
+```
+
+## Deployment
+
+Every push to `main` is deployed to the production VPS. Keep `server/.env` only on the server; never commit it.
+See [SECURITY.md](SECURITY.md) for the security rules and how to report a problem.
 
 ## Next stage
 - Telegram bot payments → writes to the `payments` table and extends `users.sub_until` (same as the teacher’s “Activate”).

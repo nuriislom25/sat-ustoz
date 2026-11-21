@@ -93,11 +93,13 @@ export async function seed() {
 
   await db.tx(async (t) => {
     // hosted without MASTER_PASSWORD: no default teacher — the MASTER_EMAIL owner signs up and becomes the teacher
-    const master = (process.env.VERCEL && !process.env.MASTER_PASSWORD) ? null : (await t.run("INSERT INTO users (name, login, password_hash, role, provider) VALUES (?, ?, ?, 'master', 'teacher') RETURNING id",
+    // a hosted server (Vercel, NODE_ENV=production) never gets the default master123 teacher; set MASTER_PASSWORD instead
+    const hosted = !!process.env.VERCEL || process.env.NODE_ENV === 'production';
+    const master = (hosted && !process.env.MASTER_PASSWORD) ? null : (await t.run("INSERT INTO users (name, login, password_hash, role, provider) VALUES (?, ?, ?, 'master', 'teacher') RETURNING id",
       ['Teacher', masterLogin, bcrypt.hashSync(masterPass, 10)])).id;
 
     const g = (await t.run('INSERT INTO groups (name) VALUES (?) RETURNING id', ['Happy Smurfs | PRE-eng'])).id;
-    const demo = !process.env.VERCEL; // hosted: no demo student account
+    const demo = !hosted; // hosted: no demo student account
     const subUntil = new Date(Date.now() + 60 * 86400e3).toISOString();
     const student = demo && (await t.run(
       "INSERT INTO users (name, login, password_hash, role, provider, group_id, target_english, target_math, exam_date, diagnostic_score, cefr, admitted, placement_at, sub_until, sub_plan) VALUES (?, ?, ?, 'student', 'teacher', ?, 750, 800, '2027-03-06', 520, 'B2', true, now(), ?, 'month') RETURNING id",

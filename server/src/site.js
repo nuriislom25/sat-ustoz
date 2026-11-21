@@ -15,6 +15,7 @@ import jwt from 'jsonwebtoken';
 import { db } from './db.js';
 import { DOMAINS } from './qbank.js';
 import { subActive } from './auth.js';
+import { clientIp } from './security.js';
 import { registerPractice } from './practice.js';
 
 export async function migrateSite() {
@@ -173,7 +174,7 @@ function optionalUser(SECRET) {
   return (req) => {
     const h = req.headers.authorization || '';
     if (!h.startsWith('Bearer ')) return null;
-    try { return jwt.verify(h.slice(7), SECRET()); } catch { return null; }
+    try { return jwt.verify(h.slice(7), SECRET(), { algorithms: ['HS256'] }); } catch { return null; }
   };
 }
 
@@ -183,7 +184,7 @@ function optionalUser(SECRET) {
  * (rolling window). Subscribers and the teacher are unlimited. Accounts are counted per account (students in one
  * classroom share an IP), guests by a hashed IP.
  */
-export const ipKey = (req) => crypto.createHash('sha256').update(String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim() + ':sat-ustoz').digest('hex').slice(0, 24);
+export const ipKey = (req) => crypto.createHash('sha256').update(`${clientIp(req)}:sat-ustoz`).digest('hex').slice(0, 24);
 export async function quota(req, u, cfg) {
   const limit = Number(cfg.daily_limit) || 0;
   let unlimited = limit <= 0;

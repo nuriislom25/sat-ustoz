@@ -5,10 +5,13 @@ import { db } from './db.js';
 
 export const ORIGINS = ['https://www.ustozsat.uz', 'https://ustozsat.uz', 'https://sat-ustoz.vercel.app'];
 const DEV = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
-export const corsOptions = {
-  origin: (origin, cb) => cb(null, !origin || ORIGINS.includes(origin) || (!process.env.VERCEL && DEV.test(origin))),
-  credentials: false,
-  maxAge: 600,
+/** The request reached a server running on this machine (local development), not the public site. */
+export const isLocalRequest = (req) => /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(String(req.headers?.host || ''));
+/** CORS: the site's own origins; localhost pages only while the server itself runs locally. */
+export const corsOptions = (req, cb) => {
+  const origin = req.headers.origin;
+  const ok = !origin || ORIGINS.includes(origin) || (DEV.test(origin) && isLocalRequest(req));
+  cb(null, { origin: ok, credentials: false, maxAge: 600 });
 };
 
 /** Content Security Policy shared by the API and the static site (vercel.json has the same value). */
@@ -40,7 +43,17 @@ export function securityHeaders(req, res, next) {
   next();
 }
 
-export const clientIp = (req) => String(req.headers?.['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64);
+/**
+ * The visitor's IP. X-Forwarded-For is a list the client can start with anything it likes ("1.2.3.4, <real ip>"),
+ * so only the entry added by our own proxy (the last one) is trusted; Cloudflare's header wins when present.
+ * (Taking the first entry let anyone pick a new IP per request and skip rate limits and lockouts.)
+ */
+export const clientIp = (req) => {
+  const cf = String(req.headers?.['cf-connecting-ip'] || '').trim();
+  if (cf) return cf.slice(0, 64);
+  const xff = String(req.headers?.['x-forwarded-for'] || '').split(',').map((x) => x.trim()).filter(Boolean);
+  return String(xff.length ? xff[xff.length - 1] : req.socket?.remoteAddress || '').slice(0, 64);
+};
 
 /**
  * Simple sliding-window limiter per IP (per server instance). Stops floods and scripted guessing;
@@ -80,7 +93,9 @@ export async function audit(req, action, target = '', detail = '') {
   } catch (e) { console.error('[audit]', e.message); }
 }
 
-const COMMON = new Set(['123456', '1234567', '12345678', '123456789', '1234567890', '111111', '000000', '654321', '123123', 'password', 'qwerty', 'qwerty123', 'abc123', 'password1', 'iloveyou', '11111111', '00000000', '12341234', 'parol', 'parol123', 'sat123', 'satustoz']);
+const COMMON = new Set(['123456', '1234567', '12345678', '123456789', '1234567890', '111111', '000000', '654321', '123123', 'password', 'qwerty', 'qwerty123', 'abc123', 'password1', 'iloveyou', '11111111', '00000000', '12341234', 'parol', 'parol123', 'sat123', 'satustoz', 'master123', 'student123', 'teacher123', 'admin123', 'admin', 'ustozsat', 'ustozsat123']);
+/** Passwords that were ever shipped as defaults (README, seed): never accepted for sign-in on the public site. */
+export const DEFAULT_PASSWORDS = ['master123', 'student123'];
 /** Returns an error message, or '' when the password is acceptable. */
 export function weakPassword(pw, { name = '', email = '' } = {}) {
   const p = String(pw || '');

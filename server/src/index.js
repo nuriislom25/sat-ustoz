@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import { corsOptions, securityHeaders, rateLimit, migrateSecurity, audit, weakPassword, clientIp } from './security.js';
+import { corsOptions, securityHeaders, rateLimit, migrateSecurity, audit, weakPassword, clientIp, isLocalRequest, DEFAULT_PASSWORDS } from './security.js';
 import multer from 'multer';
 import compression from 'compression';
 import bcrypt from 'bcryptjs';
@@ -197,7 +197,12 @@ if (seeded || synced?.value !== fingerprint) {
     }
   }
 }
-if (seeded) console.log(`[seed] Teacher login: ${seeded.masterLogin}${process.env.VERCEL ? '' : ` / ${seeded.masterPass}  |  demo student: shukurullo / student123`}`);
+if (seeded) console.log(`[seed] Teacher login: ${seeded.masterLogin}${process.env.VERCEL || process.env.NODE_ENV === 'production' ? '' : ' (local demo accounts: see README)'}`);
+// warn (without printing anything secret) when a teacher account still has a published default password
+db.all("SELECT login, password_hash FROM users WHERE role = 'master' AND password_hash IS NOT NULL").then((rows) => {
+  const weak = rows.filter((r) => DEFAULT_PASSWORDS.some((p) => bcrypt.compareSync(p, r.password_hash))).map((r) => r.login);
+  if (weak.length) console.warn(`[security] Teacher account(s) with a default password: ${weak.join(', ')}. Sign-in with it works only on localhost. Change it: npm run set-password --prefix server -- <login>`);
+}).catch(() => {});
 console.log(`[db] ${DB_KIND === 'postgres' ? 'PostgreSQL (DATABASE_URL)' : 'embedded PGlite (local)'}`);
 
 // ---------- helpers ----------
@@ -314,7 +319,14 @@ app.post('/api/auth/login', h(async (req, res) => {
   if (!u || !u.password_hash || !bcrypt.compareSync(String(password || ''), u.password_hash)) {
     if (id && u?.password_hash) await noteFail(failKey);
     if (u?.role === 'master') { await audit(req, 'login_failed', `teacher ${u.id}`); notifyAdmins(`⚠️ Teacher sign-in failed (wrong password). IP: ${clientIp(req)}`); }
-    return bad(res, u && !u.password_hash ? 'This account uses Google — tap “Continue with Google”' : 'Incorrect login or password', 401);
+    // one answer for "no such account", "wrong password" and "Google account": nobody can probe which logins exist
+    return bad(res, 'Incorrect login or password. If you signed up with Google, tap “Continue with Google”.', 401);
+  }
+  // passwords that were once published as defaults (master123, student123) only work on a local development server
+  if (DEFAULT_PASSWORDS.includes(String(password)) && !isLocalRequest(req)) {
+    await audit({ headers: req.headers, socket: req.socket, user: u }, 'login_default_password_blocked', `user ${u.id}`);
+    if (u.role === 'master') notifyAdmins(`⛔ Sign-in with a default password was blocked (account ${u.login}). IP: ${clientIp(req)}. Set a new password on the server: npm run set-password --prefix server -- ${u.login}`);
+    return bad(res, 'This account still has a default password, so sign-in is blocked for safety. Ask the teacher to reset it.', 403, { code: 'default_password' });
   }
   await clearFails(failKey);
   if (u.disabled) return bad(res, 'This account is turned off. Ask the teacher.', 403);
