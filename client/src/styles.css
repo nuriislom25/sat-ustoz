@@ -4254,3 +4254,8 @@ a.mr-lesson:hover { text-decoration: none; border-color: var(--m); }
 .tier.best { box-shadow: 0 24px 50px -30px rgba(42,85,229,.55); }
 .sub-top { align-items: start; }
 .sub-now { min-height: 0; }
+/* the wallet card: a long name and the wallet number never run together */
+.paycard-bottom { gap: 14px; }
+.paycard-bottom > div { min-width: 0; }
+.paycard-bottom > div:first-child span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 480px) { .wallet .paycard-bottom { flex-direction: column; align-items: flex-start; gap: 8px; } .wallet .paycard-bottom > div:last-child { text-align: left !important; } }
