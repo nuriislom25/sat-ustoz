@@ -119,8 +119,7 @@ export function AboutPage() {
 
       <div className="pub-wrap" style={{ paddingTop: 0 }}>
         <div className="ab-stats">
-          <div><b>{Number(c.english || c.questions).toLocaleString('en-US').replace(/,/g, ' ')}</b><span>English questions</span></div>
-          <div><b>{Number(c.math || 0).toLocaleString('en-US').replace(/,/g, ' ')}</b><span>Math questions</span></div>
+          <div><b>{(() => { const n = Number(c.english || c.questions || 0) + Number(c.math || 0); const r = n >= 1000 ? 100 : 1; return `${(Math.floor(n / r) * r).toLocaleString('en-US').replace(/,/g, ' ')}+`; })()}</b><span>SAT questions</span></div>
           <div><b>{c.skills}</b><span>SAT skills covered</span></div>
           <div><b>{site.practice.test_size}</b><span>questions per test</span></div>
           <div><b>200 → 800</b><span>step-by-step roadmap</span></div>
