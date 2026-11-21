@@ -481,6 +481,46 @@ const shortName = (n) => { const w = String(n || '').trim().split(/\s+/); return
 // fair play: only a student's first try of a quiz and first-try right answers in the Question Bank count, and
 // practice tests, Word Arena and time on the platform have a daily ceiling (the prizes are real money)
 const LB = { practice_day: 3, arena_day: 300, minutes_day: 180 };
+/**
+ * Teacher: where one student's leaderboard points come from, source by source, under today's rules and under the
+ * rules before 2026-11-21 (every retake, every re-answer and unlimited time counted).
+ */
+app.get('/api/leaderboard/explain/:id', requireMaster, h(async (req, res) => {
+  const id = Number(req.params.id);
+  const week = req.query.period !== 'all';
+  const since = week ? WEEK_START : "'1970-01-01'::timestamptz"; const until = "now() + interval '1 minute'";
+  const rng = (col) => `${col} >= ${since} AND ${col} < ${until}`;
+  const n = async (sql) => Number((await db.one(sql, [id]))?.p || 0);
+  const out = {
+    question_bank: {
+      now: await n(`SELECT 10 * COUNT(*) AS p FROM qbank_answers WHERE user_id = ? AND correct AND first_correct AND ${rng('answered_at')}`),
+      before: await n(`SELECT 10 * COUNT(*) AS p FROM qbank_answers WHERE user_id = ? AND correct AND ${rng('answered_at')}`),
+    },
+    practice_tests: {
+      now: await n(`SELECT 10 * COALESCE(SUM(score), 0) AS p FROM (SELECT score, ROW_NUMBER() OVER (PARTITION BY (finished_at AT TIME ZONE 'Asia/Tashkent')::date ORDER BY finished_at) AS k
+        FROM practice_sessions WHERE user_id = ? AND ${rng('finished_at')}) x WHERE k <= ${LB.practice_day}`),
+      before: await n(`SELECT 10 * COALESCE(SUM(score), 0) AS p FROM practice_sessions WHERE user_id = ? AND ${rng('finished_at')}`),
+    },
+    quizzes: {
+      now: await n(`SELECT 10 * COALESCE(SUM(score), 0) AS p FROM (SELECT DISTINCT ON (quiz_id) score, finished_at FROM attempts WHERE user_id = ? AND finished_at IS NOT NULL ORDER BY quiz_id, finished_at) f WHERE ${rng('finished_at')}`),
+      before: await n(`SELECT 10 * COALESCE(SUM(score), 0) AS p FROM attempts WHERE user_id = ? AND total > 0 AND ${rng('finished_at')}`),
+    },
+    words: { now: await n(`SELECT 2 * COUNT(*) AS p FROM vocab_progress WHERE user_id = ? AND ${rng('last_at')}`) },
+    word_arena: {
+      now: await n(`SELECT COALESCE(SUM(LEAST(p, ${LB.arena_day})), 0) AS p FROM (SELECT 5 * SUM(correct) AS p FROM game_players WHERE user_id = ? AND ${rng('joined_at')} GROUP BY (joined_at AT TIME ZONE 'Asia/Tashkent')::date) g`),
+      before: await n(`SELECT 5 * COALESCE(SUM(correct), 0) AS p FROM game_players WHERE user_id = ? AND ${rng('joined_at')}`),
+    },
+    minutes: {
+      now: await n(`SELECT COALESCE(SUM(LEAST(s, ${LB.minutes_day * 60})), 0) / 60 AS p FROM (SELECT SUM(seconds) AS s FROM user_activity WHERE user_id = ? AND day >= (${since})::date AND day < (${until})::date GROUP BY day) a`),
+      before: await n(`SELECT COALESCE(SUM(seconds), 0) / 60 AS p FROM user_activity WHERE user_id = ? AND day >= (${since})::date AND day < (${until})::date`),
+    },
+  };
+  out.words.before = out.words.now;
+  const quiz = await db.all(`SELECT q.title, COUNT(*) AS tries, MIN(a.score) AS first_min, MAX(a.score) AS best, SUM(a.score) AS sum_score, MAX(a.total) AS total
+    FROM attempts a JOIN quizzes q ON q.id = a.quiz_id WHERE a.user_id = ? AND a.finished_at IS NOT NULL AND ${rng('a.finished_at')} GROUP BY q.title ORDER BY COUNT(*) DESC LIMIT 15`, [id]);
+  const total = (k) => Object.values(out).reduce((s, x) => s + Number(x[k] || 0), 0);
+  res.json({ sources: out, total_now: total('now'), total_before: total('before'), quizzes: quiz });
+}));
 /** Students ranked by points between `since` and `until` (SQL expressions). */
 async function boardRows(since, until, meId, onlyIds = null) {
   const rng = (col) => `${col} >= ${since} AND ${col} < ${until}`;
