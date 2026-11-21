@@ -8,7 +8,7 @@ import { useAuth } from './context.jsx';
 import { Spinner } from './components/ui.jsx';
 import { LimitWall } from './usage.jsx';
 import { ComingSoon, subjectOf, ToMath } from './subject.jsx';
-import { IconDoc, IconTarget } from './components/icons.jsx';
+import { IconDoc } from './components/icons.jsx';
 
 // pages load on demand: a smaller first download on mobile data (each page is its own file).
 // After a new deploy an open tab may ask for an old file name: reload once to get the new version.
@@ -70,6 +70,7 @@ const MathHome = page(() => import('./pages/math/MathHome.jsx'));
 const MathLesson = page(() => import('./pages/math/MathLesson.jsx'));
 const MathPractice = page(() => import('./pages/math/MathPractice.jsx'));
 const MathRoadmap = page(() => import('./pages/math/MathRoadmap.jsx'));
+const MathBank = page(() => import('./pages/math/MathBank.jsx'));
 const MathRoadLesson = page(() => import('./pages/math/MathRoadmap.jsx').then((m) => ({ default: m.MathRoadLesson })));
 const MathDash = page(() => import('./pages/math/MathDash.jsx'));
 const MathMistakes = page(() => import('./pages/math/MathDash.jsx').then((m) => ({ default: m.MathMistakes })));
@@ -223,7 +224,7 @@ export default function App() {
         <Route path="lesson-check/:id" element={<LevelCheckResult />} />
         <Route path="live" element={math ? home : <Live />} />
         <Route path="profile" element={<Profile />} />
-        <Route path="question-bank" element={math ? <ComingSoon icon={IconTarget} title="The Math Question Bank is coming" text="Hundreds of official-style SAT Math questions by domain and level are being added. Until then, practise every topic from Practice." /> : <QuestionBank />} />
+        <Route path="question-bank" element={math ? <MathBank /> : <QuestionBank />} />
         <Route path="login" element={<Navigate to="/" replace />} />
         <Route path="signup" element={<Navigate to="/" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />

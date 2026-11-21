@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { api } from '../../api.js';
 import { useToast } from '../../context.jsx';
 import { Card, Confirm, Field, Gate, Modal, PageHeader, Segmented, useAsync } from '../../components/ui.jsx';
-import { IconEye, IconEyeOff, IconPlus, IconSearch, IconTrash } from '../../components/icons.jsx';
+import { IconDownload, IconEye, IconEyeOff, IconPlus, IconSearch, IconTrash, IconUpload } from '../../components/icons.jsx';
 import MathText from './MathText.jsx';
 import { PictureBar, usePictureField } from '../../components/QuestionPictures.jsx';
 import MathRoadAdmin from './MathRoadAdmin.jsx';
@@ -19,15 +19,44 @@ export default function MathAdmin() {
   const [edit, setEdit] = useState(null);
   const [del, setDel] = useState(null);
   const [tab, setTab] = useState('roadmap');
+  const [importing, setImporting] = useState(false);
+  const [report, setReport] = useState(null);
+  const importFile = async (f) => {
+    setImporting(true);
+    try {
+      const fd = new FormData(); fd.append('file', f);
+      const r = await api.upload('/math/admin/import', fd);
+      setReport(r); st.reload();
+    } catch (e) { toast(e.message, 'bad'); }
+    setImporting(false);
+  };
   const toggle = async (x) => { try { await api.put(`/math/admin/${x.id}`, { active: !x.active }); st.reload(); } catch (e) { toast(e.message, 'bad'); } };
   return (
     <div className="page math-page">
       <PageHeader title="SAT Math" sub={tab === 'roadmap' ? 'The Math roadmap: video lessons in order, each with a practice and a pass mark.' : 'Questions students practise in the Math section, with the Desmos calculator. Write formulas between $ signs, e.g. $x^2 + 3x$ or $\\frac{3}{4}$.'}>
-        {tab === 'questions' && <button className="btn primary" onClick={() => setEdit({})}><IconPlus width={16} height={16} /> New question</button>}
+        {tab === 'questions' && <>
+          <button className="btn ghost" onClick={() => api.download('/math/admin/template.xlsx', 'sat-math-questions-template.xlsx').catch((e) => toast(e.message, 'bad'))}><IconDownload width={16} height={16} /> Template</button>
+          <label className={`btn soft ${importing ? 'disabled' : ''}`}>
+            <IconUpload width={16} height={16} /> {importing ? 'Importing…' : 'Import Excel'}
+            <input type="file" hidden accept=".xlsx,.xls,.csv" disabled={importing} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) importFile(f); }} />
+          </label>
+          <button className="btn primary" onClick={() => setEdit({})}><IconPlus width={16} height={16} /> New question</button>
+        </>}
       </PageHeader>
       <Segmented value={tab} onChange={setTab} options={[{ value: 'roadmap', label: 'Roadmap lessons' }, { value: 'questions', label: 'Questions' }]} />
       {tab === 'roadmap' ? <MathRoadAdmin /> : <Gate state={st}>{(d) => <List d={d} {...{ dom, setDom, q, setQ, setEdit, setDel, toggle }} />}</Gate>}
       {edit && st.data && <Editor x={edit} domains={st.data.domains} onClose={() => setEdit(null)} onDone={() => { setEdit(null); st.reload(); }} />}
+      {report && (
+        <Modal title="Import finished" onClose={() => setReport(null)} footer={<button className="btn primary" onClick={() => setReport(null)}>OK</button>}>
+          <p><b>{report.added}</b> question{report.added === 1 ? '' : 's'} added to the Math Question Bank{report.duplicates ? `, ${report.duplicates} already there (skipped)` : ''}.</p>
+          {report.problem_count > 0 && (
+            <>
+              <p className="muted">{report.problem_count} row{report.problem_count === 1 ? ' was' : 's were'} not added:</p>
+              <ul className="muted" style={{ margin: 0, paddingLeft: 18 }}>{report.problems.map((p) => <li key={p}>{p}</li>)}</ul>
+            </>
+          )}
+        </Modal>
+      )}
       {del && <Confirm title="Delete this question?" text={del.source === 'starter' ? 'This is a built-in question: it will be hidden from students.' : 'Students’ answers to it are removed too.'} confirmLabel="Delete"
         onClose={() => setDel(null)} onConfirm={async () => { try { await api.del(`/math/admin/${del.id}`); setDel(null); st.reload(); } catch (e) { toast(e.message, 'bad'); } }} />}
     </div>

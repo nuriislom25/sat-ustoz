@@ -423,7 +423,7 @@ registerVocab(app, { h, bad, requireMaster, requireStudent, accessFor: (u) => ac
 
 registerPlacement(app, { h, bad, requireStudent, requireMaster });
 registerLessons(app, { h, bad, requireStudent, requireMaster, roadmapFor: (u) => roadmapFor(u), accessFor: (u) => accessFor(u) });
-registerMath(app, { h, bad, requireStudent, requireMaster });
+registerMath(app, { h, bad, requireStudent, requireMaster, upload });
 registerSubjects(app, { h, bad, requireStudent, requireMaster });
 registerQbank(app, { h, bad, requireStudent, requireMaster, accessFor: (u) => accessFor(u), upload, usedToday,
   itemOpen: async (user, itemId) => (await roadmapFor(user)).steps.some((st) => st.status !== 'locked' && st.items.some((i) => i.id === Number(itemId))) });

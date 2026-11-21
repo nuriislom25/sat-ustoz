@@ -6,6 +6,7 @@ import { Card, Gate, Modal, useAsync } from '../../components/ui.jsx';
 import { IconArrow, IconCalc, IconCheck, IconClock, IconRuler } from '../../components/icons.jsx';
 import { Desmos, ReferenceSheet } from './Desmos.jsx';
 import MathAdmin from './MathAdmin.jsx';
+import PracticeTabs from '../../components/PracticeTabs.jsx';
 
 const DOMAIN_LOOK = { alg: ['#0E9F6E', 'x + y'], adv: ['#7C4DFF', 'x²'], psda: ['#E2553D', '%'], geo: ['#2A7DE1', '△'] };
 const LEVELS = [['', 'All levels'], ['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard']];
@@ -30,6 +31,7 @@ function StudentMath() {
   };
   return (
     <div className="page math-page">
+      <PracticeTabs />
       <Gate state={st}>{(d) => {
         const pct = d.done ? Math.round((d.correct / d.done) * 100) : null;
         return (

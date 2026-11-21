@@ -82,7 +82,22 @@ export function sprCorrect(given, accepted) {
   });
 }
 
-export function registerMath(app, { h, bad, requireStudent, requireMaster }) {
+export function registerMath(app, { h, bad, requireStudent, requireMaster, upload }) {
+  // teacher: many questions at once from Excel / CSV, and the example file
+  app.post('/api/math/admin/import', requireMaster, upload.single('file'), h(async (req, res) => {
+    if (!req.file?.buffer?.length) return bad(res, 'Choose an Excel or CSV file');
+    const { importMath } = await import('./mathImport.js');
+    let r;
+    try { r = await importMath(req.file.buffer, req.user.id); } catch { return bad(res, 'The file could not be read. Use the template (Excel or CSV).'); }
+    if (!r.added && !r.duplicates) return bad(res, r.problems.length ? `Nothing was added: ${r.problems.slice(0, 3).join('; ')}` : 'The file has no questions');
+    res.json(r);
+  }));
+  app.get('/api/math/admin/template.xlsx', requireMaster, h(async (req, res) => {
+    const { mathTemplate } = await import('./mathImport.js');
+    res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': 'attachment; filename="sat-math-questions-template.xlsx"' });
+    res.send(mathTemplate());
+  }));
+
   const cleanQ = (b, old = {}) => {
     const domain = ['alg', 'adv', 'psda', 'geo'].includes(b.domain) ? b.domain : old.domain;
     const sk = starter().domains.find((d) => d.id === domain)?.skills || [];
