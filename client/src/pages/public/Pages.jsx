@@ -119,7 +119,8 @@ export function AboutPage() {
 
       <div className="pub-wrap" style={{ paddingTop: 0 }}>
         <div className="ab-stats">
-          <div><b>{c.questions}+</b><span>original questions</span></div>
+          <div><b>{Number(c.english || c.questions).toLocaleString('en-US').replace(/,/g, ' ')}</b><span>English questions</span></div>
+          <div><b>{Number(c.math || 0).toLocaleString('en-US').replace(/,/g, ' ')}</b><span>Math questions</span></div>
           <div><b>{c.skills}</b><span>SAT skills covered</span></div>
           <div><b>{site.practice.test_size}</b><span>questions per test</span></div>
           <div><b>200 → 800</b><span>step-by-step roadmap</span></div>

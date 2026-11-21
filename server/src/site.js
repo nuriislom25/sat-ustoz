@@ -211,8 +211,10 @@ export function registerSitePublic(app, { h, bad, secret }) {
     const q = await db.one('SELECT COUNT(*) AS n FROM qbank_questions WHERE active AND NOT premium AND reserved_for IS NULL');
     const st = await db.one("SELECT COUNT(*) AS n FROM users WHERE role = 'student'");
     const tests = await db.one('SELECT COUNT(*) AS n FROM practice_sessions WHERE finished_at IS NOT NULL');
+    const en = await db.one('SELECT COUNT(*) AS n FROM qbank_questions WHERE active');
+    const mt = await db.one('SELECT COUNT(*) AS n FROM math_questions WHERE active').catch(() => ({ n: 0 }));
     res.json({ home, faq, about, sections: sections.filter((s) => s.enabled), pages, practice,
-      counts: { questions: Number(q.n), students: Number(st.n), tests: Number(tests.n), skills: DOMAINS.reduce((s, d) => s + d.skills.length, 0) } });
+      counts: { questions: Number(q.n), english: Number(en.n), math: Number(mt.n), students: Number(st.n), tests: Number(tests.n), skills: DOMAINS.reduce((s, d) => s + d.skills.length, 0) } });
   }));
 
   app.get('/api/public/pages/:slug', h(async (req, res) => {

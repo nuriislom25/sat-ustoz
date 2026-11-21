@@ -15,6 +15,7 @@ import crypto from 'node:crypto';
 import * as XLSX from 'xlsx';
 import { db } from './db.js';
 import { starter } from './math.js';
+import { xlsxImages, storeImages, isZip } from './xlsxImages.js';
 
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 const COLS = {
@@ -81,7 +82,7 @@ export function readMathSheet(buffer, { withModule = false } = {}) {
     }
     const lvl = norm(pick(r, 'difficulty'));
     ok.push({
-      line, ...(withModule ? { module: pick(r, 'module') || '1' } : {}), domain: domain.id, skill: skill.id, kind, prompt: prompt.slice(0, 4000), options: JSON.stringify(options), answer,
+      line, row: (r.__rowNum__ ?? i + 1) + 1, ...(withModule ? { module: pick(r, 'module') || '1' } : {}), domain: domain.id, skill: skill.id, kind, prompt: prompt.slice(0, 4000), options: JSON.stringify(options), answer,
       difficulty: ['easy', 'medium', 'hard'].includes(lvl) ? lvl : lvl === 'oson' ? 'easy' : lvl === 'qiyin' ? 'hard' : 'medium',
       explanation: pick(r, 'explanation').slice(0, 4000), tip: pick(r, 'tip').slice(0, 1000),
     });
@@ -91,6 +92,9 @@ export function readMathSheet(buffer, { withModule = false } = {}) {
 
 export async function importMath(buffer, userId) {
   const { ok, problems, rows } = readMathSheet(buffer);
+  // pictures pasted into the rows (graphs, figures) go under the question text
+  const pics = isZip(buffer) ? xlsxImages(buffer) : new Map();
+  let pictures = 0;
   const have = new Set((await db.all('SELECT prompt FROM math_questions')).map((q) => textKey(q.prompt)));
   let pos = Number((await db.one('SELECT COALESCE(MAX(position), 0) AS p FROM math_questions')).p);
   let added = 0; let dupes = 0;
@@ -98,11 +102,13 @@ export async function importMath(buffer, userId) {
     const key = textKey(q.prompt);
     if (key.length > 8 && have.has(key)) { dupes++; continue; }
     have.add(key);
+    const img = pics.has(q.row) ? await storeImages(pics.get(q.row), userId) : '';
+    if (img) { q.prompt = `${q.prompt}\n\n${img}`; pictures++; }
     await db.run(`INSERT INTO math_questions (id, domain, skill, difficulty, kind, prompt, options, answer, explanation, tip, source, position)
       VALUES (?,?,?,?,?,?,?,?,?,?,'teacher',?)`, [`t-${crypto.randomBytes(5).toString('hex')}`, q.domain, q.skill, q.difficulty, q.kind, q.prompt, q.options, q.answer, q.explanation, q.tip, ++pos]);
     added++;
   }
-  return { rows, added, duplicates: dupes, problems: problems.slice(0, 30), problem_count: problems.length };
+  return { rows, added, pictures, duplicates: dupes, problems: problems.slice(0, 30), problem_count: problems.length };
 }
 
 /** An example file with every column filled in. */
@@ -127,7 +133,7 @@ export function mathTemplate({ withModule = false } = {}) {
     ['answer', 'A, B, C or D; for a typed answer the value — several accepted forms separated with ; (3/4; 0.75)'],
     ['explanation, tip', 'Optional, shown after the answer'],
     ...(withModule ? [['module', 'Full mock only: 1 = Module 1, 2 = one Module 2 for everyone, 2h = harder Module 2, 2e = easier Module 2 (22 questions each)']] : []),
-    ['image', 'Optional: a picture link (https://…) — or add the picture later in the editor'],
+    ['image', 'Optional: paste the picture (graph, figure) into the question\'s row — anywhere in that row, or in this column. A picture link (https://…) also works.'],
   ]);
   help['!cols'] = [{ wch: 34 }, { wch: 110 }];
   XLSX.utils.book_append_sheet(wb, help, 'How to fill');

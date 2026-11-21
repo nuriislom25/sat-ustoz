@@ -10,6 +10,8 @@ import { Trustpilot } from '../../components/Consent.jsx';
 import { tierPerks } from '../student/Subscribe.jsx';
 import './public.css';
 
+// big counts read better rounded down: 11 716 → "11 700+", 948 → "940+"
+const nice = (n) => { n = Number(n || 0); const r = n >= 1000 ? 100 : n >= 100 ? 10 : 1; return `${(Math.floor(n / r) * r).toLocaleString('en-US').replace(/,/g, ' ')}+`; };
 const money = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
 /** Home page for visitors: no sign-in wall — a free practice test is one click away. */
@@ -30,8 +32,8 @@ export default function Landing() {
       <section className="pub-hero">
         <div className="doodles" aria-hidden="true">
           <span className="dd d1"><b>{h.stats?.[0]?.value || '+120'}</b><i>{h.stats?.[0]?.label}</i></span>
-          <span className="dd d2"><b>{c.questions}+</b><i>practice questions</i></span>
-          <span className="dd d3"><b>{h.stats?.[1]?.value || '27'}</b><i>{h.stats?.[1]?.label}</i></span>
+          <span className="dd d2"><b>{nice(c.math)}</b><i>SAT Math questions</i></span>
+          <span className="dd d3"><b>{nice(c.english)}</b><i>Reading &amp; Writing questions</i></span>
           <span className="dd d4"><b>{h.stats?.[2]?.value || '32 min'}</b><i>{h.stats?.[2]?.label}</i></span>
           <span className="dd d5"><i>Level up</i><svg viewBox="0 0 40 40"><path d="M20 36V6M8 18 20 6l12 12" /></svg></span>
           <svg className="dd d6" viewBox="0 0 220 120"><path d="M4 112 40 70l22 26 34-52 24 30L176 10" /><path d="M160 8h18v18" /><text x="0" y="66">200</text><text x="86" y="36">600</text><text x="170" y="54">800</text></svg>
@@ -52,13 +54,13 @@ export default function Landing() {
           {/* phones: the floating doodles are hidden, so the key numbers sit here instead */}
           <div className="pub-hero-stats">
             <span><b>{h.stats?.[0]?.value || '+120'}</b><small>{h.stats?.[0]?.label || 'average score lift'}</small></span>
-            <span><b>{c.questions}+</b><small>practice questions</small></span>
-            <span><b>{h.stats?.[2]?.value || '32 min'}</b><small>{h.stats?.[2]?.label || 'like the real module'}</small></span>
+            <span><b>{nice(c.english)}</b><small>English questions</small></span>
+            <span><b>{nice(c.math)}</b><small>Math questions</small></span>
           </div>
           <Trustpilot variant="hero" />
           <div className="pub-proof">
             <div className="faces" aria-hidden="true">{['M', 'J', 'S', 'D', 'A', 'N'].map((x, i) => <span key={x} style={{ '--i': i }}>{x}</span>)}</div>
-            <span>{c.students >= 30 ? <>Loved by <b>{c.students.toLocaleString('en-US')}+</b> students</> : <>Built for students from <b>Uzbekistan</b></>}{c.tests >= 50 ? <> · <b>{c.tests.toLocaleString('en-US')}</b> practice tests taken</> : <> · <b>{c.questions}</b> original questions</>}</span>
+            <span>{c.students >= 30 ? <>Loved by <b>{c.students.toLocaleString('en-US')}+</b> students</> : <>Built for students from <b>Uzbekistan</b></>}{c.tests >= 50 ? <> · <b>{c.tests.toLocaleString('en-US')}</b> practice tests taken</> : <> · <b>{nice(c.english)}</b> English and <b>{nice(c.math)}</b> Math questions</>}</span>
           </div>
         </div>
       </section>

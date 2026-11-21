@@ -284,6 +284,9 @@ export function registerMathMocks(app, { h, bad, requireMaster, requireStudent, 
     try { r = readMathSheet(req.file.buffer, { withModule: true }); } catch { return bad(res, 'The file could not be read. Use the template (Excel or CSV).'); }
     if (!r.ok.length) return bad(res, r.problems.length ? `Nothing was added: ${r.problems.slice(0, 3).join('; ')}` : 'The file has no questions');
     const replace = req.body?.replace === 'true' || req.body?.replace === true;
+    const { xlsxImages, storeImages, isZip } = await import('./xlsxImages.js');
+    const pics = isZip(req.file.buffer) ? xlsxImages(req.file.buffer) : new Map();
+    for (const q of r.ok) if (pics.has(q.row)) { const img = await storeImages(pics.get(q.row), req.user.id); if (img) q.prompt = `${q.prompt}\n\n${img}`; }
     await db.tx(async (t) => {
       if (replace) await t.run('DELETE FROM math_mock_questions WHERE mock_id = ?', [m.id]);
       const pos = {};

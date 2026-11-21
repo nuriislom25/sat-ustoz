@@ -58,13 +58,15 @@ function cleanCorrect(v) {
   return m ? m[0] : '';
 }
 
-export function parseSheet(buffer) {
+export function parseSheet(buffer, pictures = new Map()) {
   const wb = XLSX.read(buffer, { type: 'buffer' });
   const sheet = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+  // a picture pasted into a question's row (graph, chart) goes under its passage
+  const withPics = (r, passage) => { const t = pictures.get((r.__rowNum__ ?? -1) + 1); return t ? (passage ? `${passage}\n\n${t}` : t) : passage; };
   return rows
     .map((r) => ({
-      passage: withImage(pick(r, 'passage'), pick(r, 'image')),
+      passage: withPics(r, withImage(pick(r, 'passage'), pick(r, 'image'))),
       prompt: pick(r, 'prompt') || DEFAULT_PROMPT,
       opt_a: pick(r, 'a'),
       opt_b: pick(r, 'b'),
@@ -165,10 +167,11 @@ export function parseText(raw) {
   return out;
 }
 
-export async function parseUpload(file) {
+export async function parseUpload(file, userId = null) {
   const name = (file.originalname || '').toLowerCase();
   if (name.endsWith('.xlsx') || name.endsWith('.xls') || name.endsWith('.csv')) {
-    return parseSheet(file.buffer);
+    const { storeSheetImages } = await import('./xlsxImages.js');
+    return parseSheet(file.buffer, userId ? await storeSheetImages(file.buffer, userId) : new Map());
   }
   if (name.endsWith('.pdf')) {
     const data = await pdf(file.buffer);

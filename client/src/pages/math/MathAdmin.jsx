@@ -48,7 +48,8 @@ export default function MathAdmin({ only = null }) {
       {edit && st.data && <Editor x={edit} domains={st.data.domains} onClose={() => setEdit(null)} onDone={() => { setEdit(null); st.reload(); }} />}
       {report && (
         <Modal title="Import finished" onClose={() => setReport(null)} footer={<button className="btn primary" onClick={() => setReport(null)}>OK</button>}>
-          <p><b>{report.added}</b> question{report.added === 1 ? '' : 's'} added to the Math Question Bank{report.duplicates ? `, ${report.duplicates} already there (skipped)` : ''}.</p>
+          <p><b>{report.added}</b> question{report.added === 1 ? '' : 's'} added to the Math Question Bank{report.duplicates ? `, ${report.duplicates} already there (skipped)` : ''}{report.pictures ? `, ${report.pictures} with pictures from the file` : ''}.</p>
+          <p className="muted" style={{ fontSize: '.86rem' }}>Pictures (graphs, figures) pasted into a question's row in Excel or WPS are added under that question.</p>
           {report.problem_count > 0 && (
             <>
               <p className="muted">{report.problem_count} row{report.problem_count === 1 ? ' was' : 's were'} not added:</p>

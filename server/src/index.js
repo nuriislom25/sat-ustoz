@@ -962,7 +962,7 @@ app.get('/api/template.xlsx', h(async (req, res) => {
 app.post('/api/quizzes/parse', requireMaster, upload.single('file'), h(async (req, res) => {
   if (!req.file) return bad(res, 'Please upload a file');
   try {
-    const questions = await parseUpload(req.file);
+    const questions = await parseUpload(req.file, req.user.id);
     if (!questions.length) return bad(res, 'No questions found in the file. Check it against the template.');
     res.json({ questions, filename: req.file.originalname });
   } catch (e) { bad(res, e.message || 'Could not read the file'); }

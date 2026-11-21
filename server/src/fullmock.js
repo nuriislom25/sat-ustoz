@@ -512,7 +512,7 @@ export function registerFullMocks(app, { h, bad, requireMaster, requireStudent, 
     if (!m) return bad(res, 'Not found', 404);
     if (!req.file) return bad(res, 'Choose a file');
     let rows;
-    try { rows = await parseUpload(req.file); } catch (e) { return bad(res, e.message); }
+    try { rows = await parseUpload(req.file, req.user.id); } catch (e) { return bad(res, e.message); }
     const fallback = normModule(req.body?.module, '1');
     rows = rows.filter((q) => q.correct);
     if (!rows.length) return bad(res, 'No questions with an answer were found. Use the template columns: passage, question, A, B, C, D, correct (and module, difficulty, explanation).');
