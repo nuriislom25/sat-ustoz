@@ -163,6 +163,113 @@ export function registerAssignments(app, { h, bad, requireMaster, requireStudent
     res.json(out);
   }));
 
+  // teacher: homework statistics — how the students of a group (or everyone) are doing their teacher tasks.
+  // Same rules as the student's view: only tries made after the task was given count; grants add tries.
+  // ?group=<id> (or empty = every student) & days=7|30|90|0 (0 = all time, by the day the task was given)
+  app.get('/api/master/homework-stats', requireMaster, h(async (req, res) => {
+    const gid = Number(req.query.group) || null;
+    const days = [7, 14, 30, 90, 0].includes(Number(req.query.days)) ? Number(req.query.days) : 30;
+    const groups = await db.all('SELECT id, name, subject, archived FROM groups ORDER BY archived, name');
+    if (gid && !groups.some((g) => g.id === gid)) return bad(res, 'Group not found', 404);
+    const since = days ? new Date(Date.now() - days * 864e5) : null;
+    const params = [];
+    let where = 'WHERE 1=1';
+    if (since) { where += ' AND a.created_at >= ?'; params.push(since); }
+    // a group's view: tasks given to the group + tasks given one by one to its current students
+    let memberCut = '';
+    if (gid) {
+      where += ' AND (a.group_id = ? OR a.user_id IN (SELECT user_id FROM group_members WHERE group_id = ? AND left_at IS NULL))';
+      params.push(gid, gid);
+      memberCut = 'AND s.uid IN (SELECT user_id FROM group_members WHERE group_id = ? AND left_at IS NULL)';
+    }
+    const rows = await db.all(`WITH pairs AS (
+        SELECT a.id AS aid, a.quiz_id, a.created_at, a.due_at, a.pass_pct, a.attempts_allowed, a.close_at_due, a.group_id, s.uid
+        FROM assignments a
+        CROSS JOIN LATERAL (
+          SELECT a.user_id AS uid WHERE a.user_id IS NOT NULL
+          UNION SELECT gm.user_id FROM group_members gm WHERE a.group_id IS NOT NULL AND gm.group_id = a.group_id AND (gm.left_at IS NULL OR gm.left_at > a.created_at)
+        ) s
+        JOIN users u ON u.id = s.uid AND u.role = 'student'
+        ${where} ${memberCut}
+      )
+      SELECT p.aid, p.uid, p.quiz_id, p.created_at, p.due_at, p.pass_pct, p.attempts_allowed, p.close_at_due,
+        COUNT(t.finished_at) AS tries,
+        MAX(CASE WHEN t.finished_at IS NOT NULL AND t.total > 0 THEN ROUND(100.0 * t.score / t.total) END) AS best,
+        MAX(CASE WHEN t.finished_at IS NULL THEN t.id END) AS open_id,
+        MIN(t.started_at) AS first_at, MAX(t.finished_at) AS last_at,
+        MIN(CASE WHEN t.finished_at IS NOT NULL AND t.total > 0 AND ROUND(100.0 * t.score / t.total) >= p.pass_pct THEN t.finished_at END) AS passed_at,
+        COALESCE(SUM(CASE WHEN t.finished_at IS NOT NULL THEN LEAST(EXTRACT(EPOCH FROM (t.finished_at - t.started_at)), 4 * 3600) END), 0) AS secs
+      FROM pairs p LEFT JOIN attempts t ON t.user_id = p.uid AND t.quiz_id = p.quiz_id AND t.started_at >= p.created_at
+      GROUP BY p.aid, p.uid, p.quiz_id, p.created_at, p.due_at, p.pass_pct, p.attempts_allowed, p.close_at_due`, gid ? [...params, gid] : params);
+
+    const aids = [...new Set(rows.map((r) => r.aid))];
+    const uids = [...new Set(rows.map((r) => r.uid))];
+    const grants = new Map((aids.length ? await db.all('SELECT assignment_id, user_id, extra FROM assignment_grants WHERE assignment_id = ANY(?::int[])', [aids]) : []).map((g) => [`${g.assignment_id}:${g.user_id}`, g.extra]));
+    const meta = new Map((aids.length ? await db.all(`SELECT a.id, a.group_id, a.user_id, a.due_at, a.created_at, a.pass_pct, q.title, g.name AS group_name, u.name AS user_name FROM assignments a
+      JOIN quizzes q ON q.id = a.quiz_id LEFT JOIN groups g ON g.id = a.group_id LEFT JOIN users u ON u.id = a.user_id WHERE a.id = ANY(?::int[])`, [aids]) : []).map((a) => [a.id, a]));
+    // a group's students are listed even when they have no tasks yet; otherwise, everyone with a task
+    const people = gid
+      ? await db.all(`SELECT u.id, u.name, gm.joined_at FROM group_members gm JOIN users u ON u.id = gm.user_id WHERE gm.group_id = ? AND gm.left_at IS NULL AND u.role = 'student' ORDER BY u.name`, [gid])
+      : (uids.length ? await db.all("SELECT id, name FROM users WHERE id = ANY(?::int[]) AND role = 'student' ORDER BY name", [uids]) : []);
+
+    const now = Date.now();
+    const blank = () => ({ total: 0, passed: 0, on_time: 0, late: 0, in_progress: 0, tried: 0, not_started: 0, overdue: 0, failed: 0, best_sum: 0, best_n: 0, tries: 0, secs: 0, last_at: null });
+    const S = new Map(people.map((p) => [p.id, { id: p.id, name: p.name, joined_at: p.joined_at || null, ...blank() }]));
+    const A = new Map();
+    const all = blank();
+    for (const r of rows) {
+      const extra = grants.get(`${r.aid}:${r.uid}`) || 0;
+      const allowed = r.attempts_allowed ? r.attempts_allowed + extra : 0;
+      const res0 = { tries: Number(r.tries), best: r.best == null ? null : Number(r.best), open_id: r.open_id };
+      const status = statusOf(Number(r.tries) || r.open_id ? res0 : null, r.pass_pct, allowed, isClosed(r));
+      const due = r.due_at ? new Date(r.due_at).getTime() : null;
+      const passedAt = r.passed_at ? new Date(r.passed_at).getTime() : null;
+      const add = (o) => {
+        o.total++;
+        if (status === 'passed') { o.passed++; if (due && passedAt && passedAt > due) o.late++; else o.on_time++; }
+        else if (status === 'in_progress') o.in_progress++;
+        else if (status === 'new') o.not_started++;
+        else if (status === 'failed') o.failed++;
+        else o.tried++; // retake / closed after trying
+        if (status !== 'passed' && due && due < now) o.overdue++;
+        if (res0.best != null) { o.best_sum += res0.best; o.best_n++; }
+        o.tries += res0.tries; o.secs += Number(r.secs) || 0;
+        if (r.last_at && (!o.last_at || new Date(r.last_at) > new Date(o.last_at))) o.last_at = r.last_at;
+      };
+      add(all);
+      if (!S.has(r.uid)) continue; // a student who has since left the group: counted in the task, not listed
+      add(S.get(r.uid));
+      if (!A.has(r.aid)) { const m = meta.get(r.aid); A.set(r.aid, { id: r.aid, title: m?.title, group_id: m?.group_id, group_name: m?.group_name, user_id: m?.user_id, user_name: m?.user_name, due_at: m?.due_at, created_at: m?.created_at, pass_pct: m?.pass_pct, ...blank(), missing: [] }); }
+      const a = A.get(r.aid); add(a);
+      if (status !== 'passed') a.missing.push({ id: r.uid, name: S.get(r.uid).name, status, best: res0.best });
+    }
+    const fin = (o) => {
+      const { best_sum, best_n, secs, ...rest } = o;
+      return { ...rest, avg_best: best_n ? Math.round(best_sum / best_n) : null, minutes: Math.round(secs / 60),
+        done_pct: o.total ? Math.round((100 * o.passed) / o.total) : null };
+    };
+    const students = [...S.values()].map(fin).sort((x, y) => (x.done_pct ?? 101) - (y.done_pct ?? 101) || y.overdue - x.overdue || x.name.localeCompare(y.name));
+    const tasks = [...A.values()].map(fin).sort((x, y) => new Date(y.created_at) - new Date(x.created_at));
+    // the week-by-week share of tasks done on time (by the week the task was due, or given when it has no deadline)
+    const weeks = new Map();
+    for (const r of rows) {
+      if (!S.has(r.uid)) continue;
+      const at = new Date(r.due_at || r.created_at);
+      if (at.getTime() > now) continue;
+      const wk = new Date(at); wk.setUTCHours(0, 0, 0, 0); wk.setUTCDate(wk.getUTCDate() - ((wk.getUTCDay() + 6) % 7));
+      const k = wk.toISOString().slice(0, 10);
+      if (!weeks.has(k)) weeks.set(k, { week: k, total: 0, done: 0 });
+      const w = weeks.get(k); w.total++;
+      const ok = r.passed_at && (!r.due_at || new Date(r.passed_at) <= new Date(r.due_at));
+      if (ok) w.done++;
+    }
+    res.json({
+      groups: groups.map((g) => ({ id: g.id, name: g.name, subject: g.subject, archived: !!g.archived })),
+      group: gid, days, summary: { ...fin(all), assignments: aids.length, students: people.length },
+      students, tasks, weeks: [...weeks.values()].sort((x, y) => x.week.localeCompare(y.week)).slice(-12),
+    });
+  }));
+
   // one quiz (quiz_id) or several at once (quiz_ids, e.g. a whole folder): one task per quiz, one message per student
   app.post('/api/assignments', requireMaster, h(async (req, res) => {
     const b = req.body || {};

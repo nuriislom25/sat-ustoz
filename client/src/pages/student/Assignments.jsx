@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { lazy, Suspense, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, fmtDate } from '../../api.js';
 import { useAuth, useToast } from '../../context.jsx';
 import { Card, Confirm, Empty, Field, Gate, Modal, PageHeader, Segmented, useAsync } from '../../components/ui.jsx';
 import { IconArrow, IconCheck, IconClock, IconLock, IconPlus, IconRoad, IconSearch, IconTask, IconTrash, IconUsers } from '../../components/icons.jsx';
+const HomeworkStats = lazy(() => import('../master/HomeworkStats.jsx'));
 
 const STATUS = {
   new: ['New', 'primary'], in_progress: ['In progress', 'warn'], retake: ['Retake available', 'warn'],
@@ -95,13 +96,16 @@ function TeacherAssignments() {
   const [del, setDel] = useState(null);
   const [open, setOpen] = useState(null);
   const [edit, setEdit] = useState(null);
+  const [view, setView] = useState(() => (new URLSearchParams(location.search).get('view') === 'stats' ? 'stats' : 'list'));
   const grant = async (a, s) => { try { await api.post(`/assignments/${a.id}/grant`, { user_id: s.id, extra: 1 }); toast(`${s.name} has one more try`); st.reload(); } catch (e) { toast(e.message, 'bad'); } };
   return (
     <div className="page">
       <PageHeader title="Assignments" sub="Roadmap quizzes open for each student as they reach the step. Here you give extra quizzes to a student or a group — retakes, homework, deadlines.">
         <button className="btn primary" onClick={() => setAssign(true)}><IconPlus width={16} height={16} /> Assign a quiz</button>
       </PageHeader>
-      <Gate state={st}>{([rows, quizzes]) => (
+      <div className="as-tabs"><Segmented value={view} onChange={setView} options={[{ value: 'list', label: 'Tasks' }, { value: 'stats', label: 'Homework statistics' }]} /></div>
+      {view === 'stats' && <Suspense fallback={null}><HomeworkStats /></Suspense>}
+      {view === 'list' && <Gate state={st}>{([rows, quizzes]) => (
         <>
           {!rows.length ? <Card><Empty icon={<IconTask />} title="Nothing assigned yet" text="Press “Assign a quiz” to give a quiz to one student or a whole group." /></Card> : (
             <div className="as-list">
@@ -148,7 +152,8 @@ function TeacherAssignments() {
           {del && <Confirm title="Remove this assignment?" text={`Students keep their results, but “${del.title}” leaves their Assignments.`} confirmLabel="Remove" onClose={() => setDel(null)}
             onConfirm={async () => { try { await api.del(`/assignments/${del.id}`); toast('Removed'); setDel(null); st.reload(); } catch (e) { toast(e.message, 'bad'); } }} />}
         </>
-      )}</Gate>
+      )}</Gate>}
+      {view === 'stats' && assign && <Gate state={st}>{([, quizzes]) => <AssignModal quizzes={quizzes} onClose={() => setAssign(false)} onDone={() => { setAssign(false); st.reload(); }} />}</Gate>}
     </div>
   );
 }

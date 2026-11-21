@@ -4,9 +4,10 @@ import { api, fmtDate } from '../../api.js';
 import { useToast } from '../../context.jsx';
 import { Avatar, Card, Confirm, Empty, Gate, Modal, useAsync } from '../../components/ui.jsx';
 import { IconArchive, IconCalendar, IconChevron, IconClock, IconCopy, IconEdit, IconHistory, IconMove, IconSearch, IconTelegram, IconTrash, IconUserPlus, IconUsers } from '../../components/icons.jsx';
+import HomeworkStats from './HomeworkStats.jsx';
 import { GroupForm, SUBJECT, scheduleText, shortDate } from './Groups.jsx';
 
-const TABS = [['students', 'Students'], ['attendance', 'Attendance'], ['stats', 'Statistics'], ['history', 'History']];
+const TABS = [['students', 'Students'], ['attendance', 'Attendance'], ['stats', 'Statistics'], ['homework', 'Homework'], ['history', 'History']];
 const MARK = { present: ['Present', 'P'], late: ['Late', 'L'], absent: ['Absent', 'A'], excused: ['Excused', 'E'] };
 const ago = (d) => {
   if (!d) return 'never';
@@ -61,6 +62,7 @@ export default function GroupDetail() {
             {tab === 'students' && <Members g={g} members={d.members} others={others} reload={st.reload} />}
             {tab === 'attendance' && <Attendance g={g} />}
             {tab === 'stats' && <Stats d={d} />}
+            {tab === 'homework' && <HomeworkStats groupId={g.id} />}
             {tab === 'history' && <History rows={d.history} gid={g.id} />}
             {edit && <GroupForm g={g} onClose={() => setEdit(false)} onDone={() => { setEdit(false); st.reload(); }} />}
             {del && <Confirm title={`Delete ${g.name}?`} text="The students stay on the site; they only leave this group. Attendance of this group is deleted. To keep everything, archive the group instead."
