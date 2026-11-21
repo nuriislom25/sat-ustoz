@@ -6,6 +6,7 @@ import { Gate, Modal, useAsync } from '../../components/ui.jsx';
 import { IconArrow } from '../../components/icons.jsx';
 import Character, { CHARACTER_KEYS, CHARACTERS, CHARACTER_SETS, isVipCharacter } from '../../components/Character.jsx';
 import { ARENA_THEMES, BOT_LEVELS, THEME_KEY, ZONES, arenaTheme, isVip } from './zones.jsx';
+import './game.css';
 
 export const hostKey = (code) => `arena-host-${code}`;
 export const playerKey = (code) => `arena-${code}`;

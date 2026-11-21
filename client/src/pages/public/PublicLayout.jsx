@@ -4,6 +4,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth, useTheme } from '../../context.jsx';
 import { IconBolt, IconBook, IconChevron, IconCrown, IconUser, IconMenu, IconMoon, IconSun, IconX, Logo } from '../../components/icons.jsx';
 import { useSite } from './site.jsx';
+import './public.css';
 
 /** Website header (like a product site): menu with dropdowns, Log in, Start free trial. No sign-in needed. */
 export default function PublicLayout() {

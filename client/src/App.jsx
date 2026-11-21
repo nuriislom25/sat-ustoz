@@ -6,8 +6,6 @@ import { UpdateBar } from './updates.jsx';
 import ActivityTracker from './components/ActivityTracker.jsx';
 import { useAuth } from './context.jsx';
 import { Spinner } from './components/ui.jsx';
-import Layout from './components/Layout.jsx';
-import Dashboard from './pages/student/Dashboard.jsx';
 import { LimitWall } from './usage.jsx';
 import { ComingSoon, subjectOf, ToMath } from './subject.jsx';
 import { IconDoc, IconTarget } from './components/icons.jsx';
@@ -19,6 +17,13 @@ const page = (load) => lazy(() => load().then((m) => { try { sessionStorage.remo
   if (again && navigator.onLine) { window.location.reload(); return new Promise(() => {}); }
   throw e;
 }));
+// the signed-in shell and the student dashboard are not needed by visitors of the public site: separate files too
+const loadLayout = () => import('./components/Layout.jsx');
+const loadDashboard = () => import('./pages/student/Dashboard.jsx');
+const Layout = page(loadLayout);
+const Dashboard = page(loadDashboard);
+// a signed-in visit fetches both at once, while the account is still loading (no extra wait)
+try { if (localStorage.getItem('token')) { loadLayout(); loadDashboard(); } } catch { /* storage blocked */ }
 const MockTaker = page(() => import('./pages/mock/MockTaker.jsx'));
 const MockResult = page(() => import('./pages/mock/MockResult.jsx'));
 const Leaderboard = page(() => import('./pages/student/Leaderboard.jsx'));

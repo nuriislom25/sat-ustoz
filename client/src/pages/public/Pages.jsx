@@ -5,6 +5,7 @@ import { useAuth } from '../../context.jsx';
 import { Spinner } from '../../components/ui.jsx';
 import { IconArrow, IconInstagram, IconTelegram } from '../../components/icons.jsx';
 import { Markdown, Video, useSite } from './site.jsx';
+import './public.css';
 
 /** A menu section (Guides, Courses…): cards of its pages. */
 export function SectionPage() {

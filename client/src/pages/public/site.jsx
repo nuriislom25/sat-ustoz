@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api.js';
 import { rich } from '../../components/Rich.jsx';
+import './public.css';
 
 /** Public site content (home texts, menu sections, pages, counts). Loaded once per page load. */
 let sitePromise;

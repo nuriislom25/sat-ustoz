@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { IconArrow } from '../../components/icons.jsx';
 import { localByPath, LOCAL_PAGES } from './localContent.js';
 import Landing from './Landing.jsx';
+import './public.css';
 
 /** Uzbek / Russian pages (same text as the prerendered HTML search engines read). */
 export default function LocalPage() {

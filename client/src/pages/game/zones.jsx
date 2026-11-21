@@ -1,4 +1,5 @@
 import Character from '../../components/Character.jsx';
+import './game.css';
 
 /** Themed zones: the same game, a different world on screen. Everything except Classic is VIP. */
 export const ZONES = [

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { mathFromModules, rwFromModules } from '../../../../server/src/scoring.js';
 import { IconArrow } from '../../components/icons.jsx';
+import './public.css';
 
 function Slider({ label, value, max, onChange }) {
   return (

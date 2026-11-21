@@ -6,6 +6,7 @@ import { Confirm, Field, Gate, Modal, useAsync } from '../../components/ui.jsx';
 import { IconArrow, IconBack, IconCrown, IconEdit, IconGame, IconLock, IconPlay, IconPlus, IconTrash, IconUpload } from '../../components/icons.jsx';
 import { VideoPlayer } from '../student/Roadmap.jsx';
 import ImportWords from './ImportWords.jsx';
+import './vocab.css';
 
 /** Vocabulary home: review button, sets of five units, a video per set. */
 export default function VocabHome() {

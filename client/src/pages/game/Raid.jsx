@@ -3,6 +3,7 @@ import { api } from '../../api.js';
 import Character from '../../components/Character.jsx';
 import { sfxRight, sfxWrong } from '../../components/gameAudio.js';
 import { big } from './GameHub.jsx';
+import './game.css';
 
 /** Cipher Raid: the player's secret password, mystery boxes after a right answer, and the hack itself. */
 

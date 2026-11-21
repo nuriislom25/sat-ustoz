@@ -7,6 +7,7 @@ import { IconArrow, IconCheck } from '../../components/icons.jsx';
 import { useSite } from './site.jsx';
 import ScoreCalc from './ScoreCalc.jsx';
 import { tierPerks } from '../student/Subscribe.jsx';
+import './public.css';
 
 const money = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 

@@ -9,6 +9,7 @@ import { VideoPlayer } from '../student/Roadmap.jsx';
 import Flashcards, { highlight, speak } from './Flashcards.jsx';
 import ImportWords from './ImportWords.jsx';
 import { ReadingTab, WicTab } from './VocabReading.jsx';
+import './vocab.css';
 
 const STATE = { new: 'New', learning: 'Learning', review: 'Learned' };
 

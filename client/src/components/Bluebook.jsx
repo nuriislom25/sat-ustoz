@@ -3,6 +3,7 @@ import { useAuth, useTheme } from '../context.jsx';
 import { Modal } from './ui.jsx';
 import { ProctorLayer, useProctor } from './Proctor.jsx';
 import { IconBookmark, IconBookmarkFill, IconChevron, IconCheck, IconEye, IconEyeOff, IconFlag, IconMoon, IconSun, IconX } from './icons.jsx';
+import './bluebook.css';
 
 /*
  * Digital-SAT style test player (the layout students see on test day):

@@ -137,7 +137,7 @@ function chunkFiles(src, seen = new Set()) {
   const e = MANIFEST[src];
   if (!e || seen.has(src)) return [];
   seen.add(src);
-  return [...(e.isEntry ? [] : [e.file]), ...(e.imports || []).flatMap((i) => chunkFiles(i, seen))];
+  return [...(e.isEntry ? [] : [e.file, ...(e.css || [])]), ...(e.imports || []).flatMap((i) => chunkFiles(i, seen))];
 }
 const PAGE_SRC = (p) => (p === '/' ? ['src/pages/public/PublicLayout.jsx', 'src/pages/public/Landing.jsx']
   : p === '/practice' ? ['src/pages/public/PublicLayout.jsx', 'src/pages/public/Practice.jsx']
@@ -146,7 +146,9 @@ const PAGE_SRC = (p) => (p === '/' ? ['src/pages/public/PublicLayout.jsx', 'src/
   : ['src/pages/public/PublicLayout.jsx', 'src/pages/public/Pages.jsx']);
 const FONTS = fs.readdirSync(path.join(DIST, 'assets')).filter((f) => /^(manrope|unbounded)-latin-wght-normal-.*\.woff2$/.test(f))
   .map((f) => `<link rel="preload" href="/assets/${f}" as="font" type="font/woff2" crossorigin />`);
-const preloads = (p) => [...new Set(PAGE_SRC(p).flatMap((s) => chunkFiles(s)))].filter((f) => f.endsWith('.js')).map((f) => `<link rel="modulepreload" href="/${f}" />`);
+// the page's split-off styles (e.g. public.css) load with the HTML too, so the first paint is already styled
+const preloads = (p) => [...new Set(PAGE_SRC(p).flatMap((s) => chunkFiles(s)))].filter((f) => /\.(js|css)$/.test(f))
+  .map((f) => (f.endsWith('.css') ? `<link rel="stylesheet" href="/${f}" />` : `<link rel="modulepreload" href="/${f}" />`));
 // search console ownership: set the codes as Vercel environment variables (no rebuild of the code needed)
 const VERIFY = [['google-site-verification', process.env.GOOGLE_SITE_VERIFICATION], ['yandex-verification', process.env.YANDEX_VERIFICATION], ['msvalidate.01', process.env.BING_VERIFICATION]]
   .filter(([, v]) => v).map(([n, v]) => `<meta name="${n}" content="${esc(v)}" />`);

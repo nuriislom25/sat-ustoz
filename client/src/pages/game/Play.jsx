@@ -8,6 +8,7 @@ import { Chips, DUEL_KEY, hostKey, playerKey, store, HERO_KEY, big } from './Gam
 import { BOT_LEVELS, ZONE, ZoneTrack, arenaTheme, isVip } from './zones.jsx';
 import { HitBanner, PasswordGate, RaidPanel } from './Raid.jsx';
 import { musicOn, sfxOn, setPref, startMusic, stopMusic, sfxRight, sfxWrong, sfxTick, sfxWin, sfxStart } from '../../components/gameAudio.js';
+import './game.css';
 
 const L = ['A', 'B', 'C', 'D'];
 const ASK = { meaning: 'What does it mean?', word: 'Which word fits this meaning?', blank: 'Fill the gap' };

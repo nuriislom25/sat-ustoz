@@ -3,6 +3,7 @@ import { api } from '../../api.js';
 import { useToast } from '../../context.jsx';
 import { IconFlip, IconVolume } from '../../components/icons.jsx';
 import Character from '../../components/Character.jsx';
+import './vocab.css';
 
 const RATINGS = [
   { r: 1, label: 'Again', cls: 'again' },
