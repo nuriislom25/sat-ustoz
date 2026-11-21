@@ -28,6 +28,12 @@ export default function Landing() {
     <>
       {/* ---------- hero ---------- */}
       <section className="pub-hero lp-hero">
+        <div className="doodles" aria-hidden="true">
+          <span className="dd d1"><b>{h.stats?.[1]?.value || '27'}</b><i>{h.stats?.[1]?.label || 'questions per practice test'}</i></span>
+          <span className="dd d5"><i>Level up</i><svg viewBox="0 0 40 40"><path d="M20 36V6M8 18 20 6l12 12" /></svg></span>
+          <svg className="dd d6" viewBox="0 0 220 120"><path d="M4 112 40 70l22 26 34-52 24 30L176 10" /><path d="M160 8h18v18" /><text x="0" y="66">200</text><text x="86" y="36">600</text><text x="170" y="54">800</text></svg>
+          {h.badges?.slice(0, 3).map((b, i) => <span key={b} className={`dd tag t${i + 1}`}>{b}</span>)}
+        </div>
         <div className="lp-hero-in">
           <div className="lp-hero-copy">
             <h1 className="pub-h1">
@@ -35,7 +41,7 @@ export default function Landing() {
             </h1>
             <p className="pub-sub">{h.hero_sub}</p>
             <div className="lp-cta">
-              <Link className="btn pill-cta" to={trial}>{user ? 'Open my dashboard' : h.cta_primary}</Link>
+              <span className="lp-cta-main"><span className="burst l" aria-hidden="true"><i /><i /><i /></span><Link className="btn pill-cta" to={trial}>{user ? 'Open my dashboard' : h.cta_primary}</Link></span>
               <Link className="lp-second" to="/practice">{h.cta_secondary} <IconArrow width={16} height={16} /></Link>
             </div>
             <small className="pub-note">{h.cta_note}</small>
