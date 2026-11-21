@@ -27,33 +27,39 @@ export default function Landing() {
   return (
     <>
       {/* ---------- hero ---------- */}
-      <section className="pub-hero lp-hero">
+      <section className="pub-hero">
         <div className="doodles" aria-hidden="true">
-          <span className="dd d1"><b>{h.stats?.[1]?.value || '27'}</b><i>{h.stats?.[1]?.label || 'questions per practice test'}</i></span>
+          <span className="dd d1"><b>{h.stats?.[0]?.value || '+120'}</b><i>{h.stats?.[0]?.label}</i></span>
+          <span className="dd d2"><b>{c.questions}+</b><i>practice questions</i></span>
+          <span className="dd d3"><b>{h.stats?.[1]?.value || '27'}</b><i>{h.stats?.[1]?.label}</i></span>
+          <span className="dd d4"><b>{h.stats?.[2]?.value || '32 min'}</b><i>{h.stats?.[2]?.label}</i></span>
           <span className="dd d5"><i>Level up</i><svg viewBox="0 0 40 40"><path d="M20 36V6M8 18 20 6l12 12" /></svg></span>
           <svg className="dd d6" viewBox="0 0 220 120"><path d="M4 112 40 70l22 26 34-52 24 30L176 10" /><path d="M160 8h18v18" /><text x="0" y="66">200</text><text x="86" y="36">600</text><text x="170" y="54">800</text></svg>
-          {h.badges?.slice(0, 3).map((b, i) => <span key={b} className={`dd tag t${i + 1}`}>{b}</span>)}
+          {h.badges?.slice(0, 4).map((b, i) => <span key={b} className={`dd tag t${i + 1}`}>{b}</span>)}
         </div>
-        <div className="lp-hero-in">
-          <div className="lp-hero-copy">
-            <h1 className="pub-h1">
-              <span className="mark sky">SAT</span> {h.hero_title?.replace(/^SAT\s*/i, '')} <span className="mark sun">{h.hero_accent}</span>
-            </h1>
-            <p className="pub-sub">{h.hero_sub}</p>
-            <div className="lp-cta">
-              <span className="lp-cta-main"><span className="burst l" aria-hidden="true"><i /><i /><i /></span><Link className="btn pill-cta" to={trial}>{user ? 'Open my dashboard' : h.cta_primary}</Link></span>
-              <Link className="lp-second" to="/practice">{h.cta_secondary} <IconArrow width={16} height={16} /></Link>
-            </div>
-            <small className="pub-note">{h.cta_note}</small>
-            <dl className="lp-facts">
-              <div><dt>{h.stats?.[0]?.value || '+120'}</dt><dd>{h.stats?.[0]?.label || 'average score lift'}</dd></div>
-              <div><dt>{c.questions}+</dt><dd>practice questions</dd></div>
-              <div><dt>{h.stats?.[2]?.value || '32 min'}</dt><dd>{h.stats?.[2]?.label || 'like the real module'}</dd></div>
-            </dl>
-            <Trustpilot variant="hero" />
-            <p className="lp-proof">{c.students >= 30 ? <>Used by <b>{c.students.toLocaleString('en-US')}+</b> students in Uzbekistan</> : <>Made in Tashkent for students in <b>Uzbekistan</b></>}{c.tests >= 50 ? <>, <b>{c.tests.toLocaleString('en-US')}</b> practice tests taken</> : null}</p>
+        <div className="pub-hero-in">
+          <h1 className="pub-h1">
+            <span className="mark sky">SAT</span> {h.hero_title?.replace(/^SAT\s*/i, '')} <span className="mark sun">{h.hero_accent}</span>
+          </h1>
+          <p className="pub-sub">{h.hero_sub}</p>
+          <div className="pub-cta-row">
+            <span className="burst l" aria-hidden="true"><i /><i /><i /></span>
+            <Link className="btn pill-cta" to={trial}>{user ? 'Open my dashboard' : h.cta_primary}</Link>
+            <span className="burst r" aria-hidden="true"><i /><i /><i /></span>
           </div>
-          <SampleReport />
+          <Link className="pub-second" to="/practice">{h.cta_secondary} <IconArrow width={16} height={16} /></Link>
+          <small className="pub-note">{h.cta_note}</small>
+          {/* phones: the floating doodles are hidden, so the key numbers sit here instead */}
+          <div className="pub-hero-stats">
+            <span><b>{h.stats?.[0]?.value || '+120'}</b><small>{h.stats?.[0]?.label || 'average score lift'}</small></span>
+            <span><b>{c.questions}+</b><small>practice questions</small></span>
+            <span><b>{h.stats?.[2]?.value || '32 min'}</b><small>{h.stats?.[2]?.label || 'like the real module'}</small></span>
+          </div>
+          <Trustpilot variant="hero" />
+          <div className="pub-proof">
+            <div className="faces" aria-hidden="true">{['M', 'J', 'S', 'D', 'A', 'N'].map((x, i) => <span key={x} style={{ '--i': i }}>{x}</span>)}</div>
+            <span>{c.students >= 30 ? <>Loved by <b>{c.students.toLocaleString('en-US')}+</b> students</> : <>Built for students from <b>Uzbekistan</b></>}{c.tests >= 50 ? <> · <b>{c.tests.toLocaleString('en-US')}</b> practice tests taken</> : <> · <b>{c.questions}</b> original questions</>}</span>
+          </div>
         </div>
       </section>
 
@@ -107,25 +113,6 @@ export default function Landing() {
         </div>
       </section>
     </>
-  );
-}
-
-/** What a student sees after the free test: an illustration of the real result page (sample numbers). */
-function SampleReport() {
-  const rows = [['Transitions', 42], ['Words in Context', 71], ['Boundaries', 88]];
-  return (
-    <figure className="lp-report" aria-label="Sample result after a free practice test">
-      <div className="lp-r-head">
-        <span>Reading &amp; Writing</span>
-        <small>Sample result</small>
-      </div>
-      <div className="lp-r-score"><b>640</b><span>likely 610–670</span></div>
-      <div className="lp-r-scale" aria-hidden="true"><i style={{ left: '73%' }} /><span>200</span><span>800</span></div>
-      <ul className="lp-r-skills">
-        {rows.map(([n, v]) => <li key={n}><span>{n}</span><i><em className={v >= 80 ? 'good' : v >= 60 ? 'warn' : 'bad'} style={{ width: `${v}%` }} /></i><b>{v}%</b></li>)}
-      </ul>
-      <div className="lp-r-next"><b>Fix first: Transitions</b><span>about +30 points with 10 questions a day</span></div>
-    </figure>
   );
 }
 
