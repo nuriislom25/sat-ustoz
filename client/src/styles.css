@@ -4244,3 +4244,13 @@ a.mr-lesson:hover { text-decoration: none; border-color: var(--m); }
 .tp-link:hover { border-color: #00B67A; text-decoration: none; }
 .tp-write { font-size: .86rem; font-weight: 600; }
 .tp-foot { margin-top: 6px; } .tp-foot .tp-link { color: rgba(255,255,255,.85); }
+
+/* ---------- plans page: four plans always fit, no sideways scroll ---------- */
+.tiers { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1240px) { .tiers { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .tiers { grid-template-columns: 1fr; } }
+.tier .price { white-space: normal; line-height: 1.15; font-size: clamp(1.1rem, .8rem + .8vw, 1.4rem); }
+.tier .price small { display: block; margin-top: 2px; }
+.tier.best { box-shadow: 0 24px 50px -30px rgba(42,85,229,.55); }
+.sub-top { align-items: start; }
+.sub-now { min-height: 0; }
