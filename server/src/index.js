@@ -478,9 +478,15 @@ app.get('/api/sat-dates', (req, res) => res.json(SAT_DATES));
  */
 const WEEK_START = "date_trunc('week', now() AT TIME ZONE 'Asia/Tashkent') AT TIME ZONE 'Asia/Tashkent'";
 const shortName = (n) => { const w = String(n || '').trim().split(/\s+/); return w[0] + (w[1] ? ` ${w[1][0]}.` : ''); };
-// fair play: only a student's first try of a quiz and first-try right answers in the Question Bank count, and
+// fair play: a quiz counts on the first try and on one real retake, first-try right answers in the Question Bank count, and
 // practice tests, Word Arena and time on the platform have a daily ceiling (the prizes are real money)
 const LB = { practice_day: 3, arena_day: 300, minutes_day: 180 };
+// quiz attempts that earn points: the first try, and one retake when the try before it was a real one (at least half
+// right). Retaking to improve counts; finishing a quiz empty to see the answers and then "retaking" it does not.
+const COUNTED_ATTEMPTS = `SELECT user_id, score, total, finished_at FROM (
+  SELECT user_id, score, total, finished_at, ROW_NUMBER() OVER w AS k, LAG(score) OVER w AS prev_score, LAG(total) OVER w AS prev_total
+  FROM attempts WHERE finished_at IS NOT NULL WINDOW w AS (PARTITION BY user_id, quiz_id ORDER BY finished_at, id)) t
+  WHERE k = 1 OR (k = 2 AND prev_total > 0 AND prev_score * 2 >= prev_total)`;
 /**
  * Teacher: where one student's leaderboard points come from, source by source, under today's rules and under the
  * rules before 2026-11-21 (every retake, every re-answer and unlimited time counted).
@@ -502,7 +508,7 @@ app.get('/api/leaderboard/explain/:id', requireMaster, h(async (req, res) => {
       before: await n(`SELECT 10 * COALESCE(SUM(score), 0) AS p FROM practice_sessions WHERE user_id = ? AND ${rng('finished_at')}`),
     },
     quizzes: {
-      now: await n(`SELECT 10 * COALESCE(SUM(score), 0) AS p FROM (SELECT DISTINCT ON (quiz_id) score, finished_at FROM attempts WHERE user_id = ? AND finished_at IS NOT NULL ORDER BY quiz_id, finished_at) f WHERE ${rng('finished_at')}`),
+      now: await n(`SELECT 10 * COALESCE(SUM(score), 0) AS p FROM (${COUNTED_ATTEMPTS}) f WHERE user_id = ? AND ${rng('finished_at')}`),
       before: await n(`SELECT 10 * COALESCE(SUM(score), 0) AS p FROM attempts WHERE user_id = ? AND total > 0 AND ${rng('finished_at')}`),
     },
     words: { now: await n(`SELECT 2 * COUNT(*) AS p FROM vocab_progress WHERE user_id = ? AND ${rng('last_at')}`) },
@@ -530,8 +536,7 @@ async function boardRows(since, until, meId, onlyIds = null) {
       UNION ALL SELECT user_id, 10 * SUM(score) FROM (
         SELECT user_id, score, ROW_NUMBER() OVER (PARTITION BY user_id, (finished_at AT TIME ZONE 'Asia/Tashkent')::date ORDER BY finished_at) AS n
         FROM practice_sessions WHERE user_id IS NOT NULL AND ${rng('finished_at')}) ps WHERE n <= ${LB.practice_day} GROUP BY user_id
-      UNION ALL SELECT user_id, 10 * SUM(CASE WHEN total > 0 THEN score ELSE 0 END) FROM (
-        SELECT DISTINCT ON (user_id, quiz_id) user_id, score, total, finished_at FROM attempts WHERE finished_at IS NOT NULL ORDER BY user_id, quiz_id, finished_at) fa
+      UNION ALL SELECT user_id, 10 * SUM(CASE WHEN total > 0 THEN score ELSE 0 END) FROM (${COUNTED_ATTEMPTS}) fa
         WHERE ${rng('finished_at')} GROUP BY user_id
       UNION ALL SELECT user_id, 2 * COUNT(*) FROM vocab_progress WHERE ${rng('last_at')} GROUP BY user_id
       UNION ALL SELECT user_id, SUM(LEAST(p, ${LB.arena_day})) FROM (
