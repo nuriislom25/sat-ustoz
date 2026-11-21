@@ -2877,7 +2877,7 @@ tr.pf-idle td:first-child b { color: var(--bad); }
   .dash { grid-template-columns: 1fr; }
   .dash-col { display: contents; }
   .dash-hello { order: 1; } .fs-card { order: 1; } .d-card { order: 2; } .d-goal { order: 3; } .d-pay { order: 4; } .d-next { order: 5; } .d-pl { order: 6; } .d-road { order: 7; }
-  .d-asg { order: 8; } .d-lb { order: 9; } .d-exam { order: 10; } .d-recent { order: 11; } .d-weak { order: 12; } .d-trend { order: 13; } .d-extra { order: 14; }
+  .d-asg { order: 8; } .d-lb { order: 9; } .d-exam { order: 10; } .d-recent { order: 11; } .d-weak { order: 12; } .d-trend { order: 13; } .d-invite { order: 14; } .d-extra { order: 15; }
 }
 @media (max-width: 640px) {
   .d-recent-list { grid-template-columns: 1fr; }
@@ -4200,3 +4200,33 @@ a.mr-lesson:hover { text-decoration: none; border-color: var(--m); }
 .qpic-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .qpic-thumb button { position: absolute; top: 4px; right: 4px; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 8px; border: 0; background: rgba(22, 27, 61, .75); color: #fff; cursor: pointer; }
 .qpic-preview { display: grid; gap: 6px; padding: 12px 14px; border-radius: 12px; background: var(--surface-2); border: 1px dashed var(--line); }
+
+/* ---------- growth: promo codes, invite a friend, focus topics, score cards ---------- */
+.promo-row { display: flex; gap: 8px; margin: 12px 0 4px; }
+.promo-row input { flex: 1; min-width: 0; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+.promo-ok { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; color: var(--good); font-weight: 600; margin: 4px 0; }
+.promo-ok s { font-weight: 400; }
+.promo-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; align-items: end; margin-top: 12px; }
+.promo-plans { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; grid-column: 1 / -1; }
+.chk { display: inline-flex; gap: 6px; align-items: center; font-size: .92rem; }
+.invite { display: grid; gap: 12px; background: linear-gradient(135deg, var(--sun-50), var(--surface) 70%); border-color: color-mix(in srgb, var(--sun) 45%, var(--line)); }
+.invite-top { display: flex; gap: 12px; align-items: flex-start; }
+.invite-top b { display: block; font-family: var(--display); font-size: 1rem; line-height: 1.3; }
+.invite-top small { color: var(--muted); font-size: .86rem; }
+.invite-ic { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; background: var(--sun); color: var(--night); flex: none; }
+.invite-link { display: flex; align-items: center; gap: 6px; background: var(--surface); border: 1px dashed var(--line); border-radius: 12px; padding: 6px 6px 6px 12px; min-width: 0; }
+.invite-link span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .88rem; }
+.invite-stat { margin: 0; font-size: .86rem; color: var(--muted); } .invite-stat b { color: var(--ink); }
+.invite.compact .invite-top b { font-size: .92rem; }
+.focus3-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.focus3-list li { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 14px; background: var(--surface-2); }
+.focus3-list li .grow { min-width: 0; display: grid; gap: 3px; }
+.focus3-list b { font-size: .95rem; } .focus3-list small { color: var(--muted); font-size: .8rem; }
+.focus3-n { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--night); color: #fff; font: 700 .85rem var(--display); flex: none; }
+.focus3-bar { display: block; height: 6px; border-radius: 4px; background: var(--line); overflow: hidden; margin-top: 2px; }
+.focus3-bar em { display: block; height: 100%; border-radius: 4px; background: var(--coral); }
+.focus3-gain { display: inline-flex; align-items: center; gap: 4px; padding: 4px 9px; border-radius: 99px; background: var(--mint-50); color: var(--mint-ink); font-weight: 700; font-size: .82rem; white-space: nowrap; }
+@media (max-width: 560px) { .focus3-list li { flex-wrap: wrap; } .focus3-list li .grow { flex: 1 1 60%; } .focus3-list li .btn { margin-left: 42px; } }
+.sc-prev { display: grid; place-items: center; background: var(--surface-2); border-radius: 16px; padding: 12px; }
+.sc-prev img { width: min(100%, 300px); aspect-ratio: 9 / 16; border-radius: 12px; box-shadow: 0 12px 40px rgba(22, 27, 61, .25); }
+.sc-wait { aspect-ratio: 9 / 16; width: min(100%, 300px); display: grid; place-items: center; color: var(--muted); }

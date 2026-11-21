@@ -6,23 +6,23 @@ import { Card, Field, Gate, Modal, PageHeader, Segmented, useAsync } from '../..
 import { IconDownload, IconEdit, IconPlus, IconSearch, IconTrash } from '../../components/icons.jsx';
 
 const som = (n) => `${Math.round(Number(n || 0)).toLocaleString('en-US').replace(/,/g, ' ')} so'm`;
-const REASON = { top_up: 'Top-up', subscription: 'Plan', full_mock: 'Extra full mock', quiz: 'Extra quiz', lesson: 'Lesson opened early', prize: 'Leaderboard prize', correction: 'Correction', direct: 'Direct payment' };
+const REASON = { referral: 'Referral bonus', refund: 'Refund', top_up: 'Top-up', subscription: 'Plan', full_mock: 'Extra full mock', quiz: 'Extra quiz', lesson: 'Lesson opened early', prize: 'Leaderboard prize', correction: 'Correction', direct: 'Direct payment' };
 const PERIODS = [{ value: 'month', label: 'This month' }, { value: 'last', label: 'Last month' }, { value: 'year', label: 'This year' }, { value: 'all', label: 'All time' }];
 
 /** Teacher finance: money in, revenue, prizes, expenses, profit and every student's wallet. */
 export default function Finance() {
   const [period, setPeriod] = useState('month');
-  const [tab, setTab] = useState(() => (window.location.hash === '#payments' ? 'payments' : 'overview'));
+  const [tab, setTab] = useState(() => (window.location.hash === '#payments' ? 'payments' : window.location.hash === '#promo' ? 'promo' : 'overview'));
   const st = useAsync(() => (tab === 'overview' ? api.get('/finance?period=' + period) : Promise.resolve(null)), [period, tab]);
-  const go = (t) => { setTab(t); try { window.history.replaceState(null, '', t === 'payments' ? '#payments' : window.location.pathname); } catch { /* ignore */ } };
+  const go = (t) => { setTab(t); try { window.history.replaceState(null, '', t === 'overview' ? window.location.pathname : `#${t}`); } catch { /* ignore */ } };
   return (
     <div className="page fin">
       <PageHeader title="Finance" sub="Every payment is saved here for good: bot receipts, top-ups, plans, extra mocks and quizzes, prizes and your expenses." />
       <div className="fin-top">
-        <Segmented value={tab} onChange={go} options={[{ value: 'overview', label: 'Overview' }, { value: 'payments', label: 'All payments' }]} />
-        <Segmented value={period} onChange={setPeriod} options={PERIODS} />
+        <Segmented value={tab} onChange={go} options={[{ value: 'overview', label: 'Overview' }, { value: 'payments', label: 'All payments' }, { value: 'promo', label: 'Promo & referrals' }]} />
+        {tab !== 'promo' && <Segmented value={period} onChange={setPeriod} options={PERIODS} />}
       </div>
-      {tab === 'payments' ? <Payments period={period} /> : <Gate state={st}>{(d) => d && <FinanceView d={d} reload={st.reload} />}</Gate>}
+      {tab === 'promo' ? <Promos /> : tab === 'payments' ? <Payments period={period} /> : <Gate state={st}>{(d) => d && <FinanceView d={d} reload={st.reload} />}</Gate>}
     </div>
   );
 }
@@ -293,5 +293,77 @@ function Expenses({ list, reload }) {
         )) : <p className="muted">Add hosting, ads and other costs to see your real profit.</p>}
       </div>
     </Card>
+  );
+}
+
+/** Promo codes (a percent off plans bought from the wallet) and the "invite a friend" bonuses. */
+function Promos() {
+  const toast = useToast();
+  const st = useAsync(() => Promise.all([api.get('/promos'), api.get('/referrals'), api.get('/settings')]), []);
+  const [f, setF] = useState({ code: '', pct: '20', max_uses: '', expires_at: '', subject: 'any', plans: [], note: '' });
+  const [bonus, setBonus] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const add = async (e) => {
+    e.preventDefault(); setBusy(true);
+    try { const r = await api.post('/promos', { ...f, pct: Number(f.pct), max_uses: Number(f.max_uses) || 0, expires_at: f.expires_at || null }); toast(`Code ${r.code} created`); setF({ ...f, code: '', note: '' }); st.reload(); }
+    catch (er) { toast(er.message, 'bad'); } finally { setBusy(false); }
+  };
+  const toggle = async (p) => { try { await api.put(`/promos/${p.code}`, { active: !p.active }); st.reload(); } catch (er) { toast(er.message, 'bad'); } };
+  const saveBonus = async () => { try { await api.put('/settings', { ref_bonus: bonus.a, ref_friend_bonus: bonus.b }); toast('Referral bonuses saved'); st.reload(); } catch (er) { toast(er.message, 'bad'); } };
+  const plan = (id) => setF({ ...f, plans: f.plans.includes(id) ? f.plans.filter((x) => x !== id) : [...f.plans, id] });
+  return (
+    <Gate state={st}>{([pr, refs, s]) => {
+      const b = bonus || { a: s.ref_bonus ?? '20000', b: s.ref_friend_bonus ?? '10000' };
+      return (
+        <div className="stack">
+          <Card>
+            <h2>New promo code</h2>
+            <p className="muted">Students type it when they pay for a plan from the wallet. Each student can use a code once. Leave the code empty to make a random one.</p>
+            <form className="promo-form" onSubmit={add}>
+              <Field label="Code"><input value={f.code} onChange={(e) => setF({ ...f, code: e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, '') })} placeholder="SPRING25" maxLength={24} /></Field>
+              <Field label="Discount, %"><input type="number" min="1" max="90" value={f.pct} onChange={set('pct')} required /></Field>
+              <Field label="Uses (empty = no limit)"><input type="number" min="0" value={f.max_uses} onChange={set('max_uses')} placeholder="100" /></Field>
+              <Field label="Ends on"><input type="date" value={f.expires_at} onChange={set('expires_at')} /></Field>
+              <Field label="Subject"><select value={f.subject} onChange={set('subject')}><option value="any">English and Math</option><option value="english">English only</option><option value="math">Math only</option></select></Field>
+              <Field label="Note (for you)"><input value={f.note} onChange={set('note')} placeholder="Instagram ad, November" maxLength={120} /></Field>
+              <div className="promo-plans"><small className="muted">Plans (none ticked = all)</small>{[['t1', 'Plus'], ['t2', 'Pro'], ['t3', 'Pro Max']].map(([id, l]) => <label key={id} className="chk"><input type="checkbox" checked={f.plans.includes(id)} onChange={() => plan(id)} /> {l}</label>)}</div>
+              <button className="btn primary" disabled={busy}><IconPlus /> Create code</button>
+            </form>
+          </Card>
+          <Card>
+            <h2>Promo codes</h2>
+            {!pr.promos.length ? <p className="muted">No codes yet.</p> : (
+              <div className="table-wrap"><table className="t">
+                <thead><tr><th>Code</th><th>Off</th><th>Used</th><th>Paid with it</th><th>Ends</th><th>For</th><th /></tr></thead>
+                <tbody>{pr.promos.map((p) => (
+                  <tr key={p.code} className={p.active ? '' : 'muted'}>
+                    <td><b className="mono">{p.code}</b>{p.note && <small className="muted" style={{ display: 'block' }}>{p.note}</small>}</td>
+                    <td>-{p.pct}%</td><td>{p.used}{p.max_uses ? ` / ${p.max_uses}` : ''}</td><td>{som(p.revenue)}</td>
+                    <td className="nowrap">{p.expires_at ? fmtDate(p.expires_at) : '—'}</td>
+                    <td>{p.subject === 'any' ? 'All' : p.subject === 'math' ? 'Math' : 'English'}{p.plans.length ? ` · ${p.plans.map((x) => ({ t1: 'Plus', t2: 'Pro', t3: 'Pro Max' }[x])).join(', ')}` : ''}</td>
+                    <td><button className="btn ghost sm" onClick={() => toggle(p)}>{p.active ? 'Turn off' : 'Turn on'}</button></td>
+                  </tr>))}</tbody>
+              </table></div>
+            )}
+          </Card>
+          <Card>
+            <h2>Invite a friend</h2>
+            <p className="muted">Every student has a personal link. When a friend who joined with it takes their first paid plan, both get money on their wallet, once.</p>
+            <div className="promo-form">
+              <Field label="Bonus for the inviter, so'm"><input type="number" min="0" value={b.a} onChange={(e) => setBonus({ ...b, a: e.target.value })} /></Field>
+              <Field label="Welcome bonus for the friend, so'm"><input type="number" min="0" value={b.b} onChange={(e) => setBonus({ ...b, b: e.target.value })} /></Field>
+              <button className="btn soft" disabled={!bonus} onClick={saveBonus}>Save</button>
+            </div>
+            {refs.rows.length > 0 && (
+              <div className="table-wrap" style={{ marginTop: 14 }}><table className="t">
+                <thead><tr><th>New student</th><th>Invited by</th><th>Joined</th><th>Bonus paid</th></tr></thead>
+                <tbody>{refs.rows.map((r) => <tr key={r.id}><td><Link to={`/students/${r.id}`}>{r.name}</Link></td><td><Link to={`/students/${r.inviter_id}`}>{r.inviter}</Link></td><td className="nowrap">{fmtDate(r.created_at)}</td><td>{r.rewarded ? 'Yes' : 'After first plan'}</td></tr>)}</tbody>
+              </table></div>
+            )}
+          </Card>
+        </div>
+      );
+    }}</Gate>
   );
 }

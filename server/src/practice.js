@@ -14,9 +14,15 @@ import crypto from 'node:crypto';
 import { db } from './db.js';
 import { DOMAINS } from './qbank.js';
 import { satScore, ROUTE_CUT } from './scoring.js';
-import { getBlock, pubQ, cleanSeed, poolIds, ipKey, quota, pubQuota } from './site.js';
+import { getBlock, pubQ, poolIds, ipKey, quota, pubQuota } from './site.js';
 import { starter, sprCorrect } from './math.js';
 
+/**
+ * Which part of the free bank a visitor sees is decided by the server (network + account + week), not by a value the
+ * browser sends: changing that value used to show a new part of the bank each time, so the whole bank with its answers
+ * could be copied from the free test.
+ */
+const seedOf = (req) => crypto.createHash('sha256').update(`${ipKey(req)}:${req.headers.authorization ? 'u' : 'g'}:${Math.floor(Date.now() / (7 * 86400e3))}`).digest('hex').slice(0, 24);
 const parse = (s, d) => { try { return s ? JSON.parse(s) : d; } catch { return d; } };
 const LEVELS = ['easy', 'medium', 'hard'];
 const SIZES = [5, 10, 15, 20, 27];
@@ -62,7 +68,11 @@ function compose(rows, size, subject, mix = MIX.mixed) {
 const mathPub = (q, names = mathNamesOf()) => ({ id: q.id, domain: q.domain, skill_id: q.skill, skill: names.get(q.skill) || q.skill, difficulty: q.difficulty, kind: q.kind, prompt: q.prompt, options: parse(q.options, []) });
 
 async function rowsFor(subject, seed, cfg) {
-  if (subject === 'math') return db.all('SELECT * FROM math_questions WHERE active');
+  if (subject === 'math') {
+    const total = Number((await db.one('SELECT COUNT(*) AS n FROM math_questions WHERE active')).n);
+    const size = Math.max(Math.min(total, 60), Math.ceil((total * Math.min(100, Math.max(10, cfg.pool_percent))) / 100));
+    return db.all('SELECT * FROM math_questions WHERE active ORDER BY md5(id || ?) LIMIT ?', [seed, size]);
+  }
   const { ids } = await poolIds(seed, cfg);
   return ids.length ? db.all('SELECT * FROM qbank_questions WHERE active AND NOT premium AND reserved_for IS NULL AND id = ANY(?::text[])', [ids]) : [];
 }
@@ -102,7 +112,7 @@ async function resultOf(s, explain) {
   const parent = s.parent_id ? await db.one('SELECT * FROM practice_sessions WHERE id = ?', [s.parent_id]) : null;
   const list = [...(parent ? await review(parent, explain, names) : []), ...(await review(s, explain, names))];
   const score = list.filter((r) => r.correct).length;
-  const sat = satScore(list.map((r) => ({ correct: r.correct, difficulty: r.difficulty, module: parent ? r.module : undefined })));
+  const sat = satScore(list.map((r) => ({ correct: r.correct, difficulty: r.difficulty, kind: r.kind, module: parent ? r.module : undefined })), s.subject);
   const skills = {};
   for (const r of list) { const k = (skills[r.skill] ||= { skill: r.skill, domain: r.domain, n: 0, ok: 0 }); k.n++; k.ok += r.correct ? 1 : 0; }
   return {
@@ -115,7 +125,7 @@ export function registerPractice(app, { h, bad, who }) {
   // what can be practised on this visit, plus a few honest numbers for trust
   app.get('/api/public/practice', h(async (req, res) => {
     const cfg = await getBlock('practice');
-    const seed = cleanSeed(req.query.seed);
+    const seed = seedOf(req);
     const { ids, total } = await poolIds(seed, cfg);
     const rows = ids.length ? await db.all('SELECT skill_id, difficulty, COUNT(*) AS n FROM qbank_questions WHERE id = ANY(?::text[]) GROUP BY skill_id, difficulty', [ids]) : [];
     const domains = DOMAINS.map((d) => ({
@@ -153,7 +163,7 @@ export function registerPractice(app, { h, bad, who }) {
     const b = req.body || {};
     const subject = b.subject === 'math' ? 'math' : 'english';
     const mode = ['quick', 'topic', 'sat', 'full'].includes(b.mode) ? b.mode : 'topic';
-    const seed = cleanSeed(b.seed);
+    const seed = seedOf(req);
     const u = who(req);
     const q = await quota(req, u, cfg);
     const S = SUBJ[subject];
@@ -192,6 +202,7 @@ export function registerPractice(app, { h, bad, who }) {
     for (const [k, v] of Object.entries(raw && typeof raw === 'object' ? raw : {})) {
       if (!ids.has(k)) continue;
       if (Number.isInteger(v) && v >= 0 && v < 5) out[k] = v;
+      else if (s.subject === 'math' && typeof v === 'number' && Number.isFinite(v)) out[k] = String(v).slice(0, 20); // a typed answer sent as a number (12, -3, 0.5)
       else if (s.subject === 'math' && typeof v === 'string' && v.trim()) out[k] = v.trim().slice(0, 20);
     }
     return out;
@@ -201,7 +212,7 @@ export function registerPractice(app, { h, bad, who }) {
     const answers = cleanAnswers(s, raw);
     const list = await review({ ...s, answers: JSON.stringify(answers) }, false, s.subject === 'math' ? mathNamesOf() : null);
     const score = list.filter((r) => r.correct).length;
-    const sat = satScore(list.map((r) => ({ correct: r.correct, difficulty: r.difficulty })));
+    const sat = satScore(list.map((r) => ({ correct: r.correct, difficulty: r.difficulty, kind: r.kind })), s.subject);
     await db.run('UPDATE practice_sessions SET answers = ?, score = ?, estimate = ?, finished_at = now(), user_id = COALESCE(user_id, ?) WHERE id = ? AND finished_at IS NULL',
       [JSON.stringify(answers), score, sat?.score ?? null, u?.id || null, s.id]);
     return { score, total: list.length };
@@ -221,7 +232,7 @@ export function registerPractice(app, { h, bad, who }) {
       const S = SUBJ[s.subject];
       const taken = new Set(parse(s.question_ids, []));
       const cfg = await getBlock('practice');
-      let rows = (await rowsFor(s.subject, cleanSeed(req.body?.seed), cfg)).filter((x) => !taken.has(x.id));
+      let rows = (await rowsFor(s.subject, seedOf(req), cfg)).filter((x) => !taken.has(x.id));
       if (rows.length < S.module && s.subject === 'english') {
         // the visit's pool can run short: top up from the whole free bank
         rows = rows.concat((await db.all('SELECT * FROM qbank_questions WHERE active AND NOT premium AND reserved_for IS NULL')).filter((x) => !taken.has(x.id) && !rows.some((r) => r.id === x.id)));

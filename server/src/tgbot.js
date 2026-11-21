@@ -10,7 +10,7 @@
  * Teacher: connects the bot in Settings (token from @BotFather), then sends `/admin CODE` to the bot once
  *   to receive payment requests.
  */
-import { readTiers, moveBalance, walletNo, buyPlan, MIN_TOPUP, MAX_TOPUP } from './tiers.js';
+import { readTiers, moveBalance, walletNo, buyPlan, MIN_TOPUP, MAX_TOPUP, tooManyFails, noteFail, clearFails } from './tiers.js';
 import crypto from 'node:crypto';
 import { db, getSettings } from './db.js';
 import { getSecret, subActive, signToken } from './auth.js';
@@ -82,7 +82,8 @@ const ctx = { tg: (...a) => tg(...a), send: (...a) => send(...a), admins: () => 
 async function plans() {
   const s = await getSettings();
   // one month of each plan (tier); names and prices come from Settings → Plans
-  return readTiers(s).map((t, i) => ({ id: t.id, label: `${i + 1}-tarif · ${t.name} · 1 oy`, days: 30, amount: t.price }))
+  // Ultra (live lessons) is booked with a fixed lesson time on the website, never sold here as a plain month
+  return readTiers(s).filter((t) => !t.live).map((t, i) => ({ id: t.id, label: `${i + 1}-tarif · ${t.name} · 1 oy`, days: 30, amount: t.price }))
     .filter((p) => p.amount > 0).map((p) => ({ ...p, currency: s.currency || 'UZS' }));
 }
 const money = (n, cur = 'UZS') => `${Number(n || 0).toLocaleString('en-US').replace(/,/g, ' ')} ${cur === 'UZS' ? "so'm" : cur}`;
@@ -103,6 +104,7 @@ function readCode(code) {
 export async function activate(userId, { plan, days, amount, currency = 'UZS', provider = 'manual', note = '', external_id = '', by = null }) {
   const u = await db.one('SELECT * FROM users WHERE id = ?', [userId]);
   if (!u) throw new Error('Student not found');
+  if (plan === 't4') throw Object.assign(new Error('Ultra is booked on the Live lessons page'), { status: 400 });
   const from = subActive(u) ? new Date(u.sub_until) : new Date();
   const until = new Date(from.getTime() + days * 86400e3).toISOString();
   await db.tx(async (t) => {
@@ -323,6 +325,13 @@ async function handle(u) {
       if (r.already) await send(chat, `Bu chek allaqachon: ${r.already === 'approved' ? 'tasdiqlangan' : 'rad etilgan'}.`);
       return;
     }
+    if (act === 'lgok') {
+      const row = await loginRow(arg);
+      const me = await db.one("SELECT * FROM users WHERE tg_chat_id = ? AND role = 'student'", [String(chat)]);
+      if (!row || !me || String(row.chat_id || '') !== String(chat)) return expired(chat);
+      await tg('editMessageReplyMarkup', { chat_id: chat, message_id: q.message.message_id, reply_markup: { inline_keyboard: [] } }).catch(() => {});
+      return loginDone(chat, row.code, me, false);
+    }
     const user = await db.one('SELECT * FROM users WHERE tg_chat_id = ?', [String(chat)]);
     if (!user) return send(chat, "Avval saytga kiring: Subscription → <b>Pay via Telegram</b> tugmasini bosing.");
     if (act === 'plans') return showPlans(chat, user);
@@ -364,11 +373,20 @@ async function handle(u) {
   if (text === '/cancel') { await setState(chat, {}); return send(chat, 'Bekor qilindi.', { reply_markup: menuKeyboard() }); }
   if (text.startsWith('/admin')) {
     const code = text.split(/\s+/)[1] || '';
-    if (code && code === (await getKey('_tg_admin_code'))) {
+    const failKey = `tgadmin:${chat}`;
+    if (await tooManyFails(failKey, 5, 60)) return send(chat, "Juda ko'p noto'g'ri urinish. 1 soatdan keyin qayta urinib ko'ring.");
+    const real = await getKey('_tg_admin_code');
+    const same = code && real && code.length === real.length && crypto.timingSafeEqual(Buffer.from(code), Buffer.from(real));
+    if (same) {
+      await clearFails(failKey);
       const list = await admins();
       if (!list.map(String).includes(String(chat))) await setKey('_tg_admins', JSON.stringify([...list, String(chat)]));
+      // the code works once: a copy seen by someone else is useless now
+      await setKey('_tg_admin_code', crypto.randomBytes(8).toString('hex'));
+      notifyAdmins(`🔐 Yangi o'qituvchi chati botga ulandi: ${esc(msg.from?.first_name || '')}${msg.from?.username ? ` (@${esc(msg.from.username)})` : ''}. Bu siz bo'lmasangiz: Settings → Telegram → Reset admins.`);
       return send(chat, "✅ Siz o'qituvchi sifatida ulandingiz.\n\n• To'lov cheklari shu yerga keladi — ✅/❌ bilan tasdiqlaysiz.\n• O'quvchilarning savol, taklif va shikoyatlari ham keladi — xabarga <b>Reply</b> qilib yoki «Javob berish» tugmasi bilan javob yozasiz.");
     }
+    await noteFail(failKey);
     return send(chat, "Kod noto'g'ri. Saytdagi Settings → Telegram bot bo'limidagi kodni yuboring: /admin KOD");
   }
   // ---- the teacher answers a student ----
@@ -481,7 +499,12 @@ async function loginStart(chat, code) {
   const row = await loginRow(code);
   if (!row) return expired(chat);
   const user = await db.one("SELECT * FROM users WHERE tg_chat_id = ? AND role = 'student'", [String(chat)]);
-  if (user) return loginDone(chat, row.code, user, false);
+  // an existing account confirms first: a sign-in link someone else sent cannot open this account for them
+  if (user) {
+    await db.run("UPDATE tg_logins SET chat_id = ? WHERE code = ?", [String(chat), row.code]);
+    return send(chat, `🔐 <b>${esc(user.name)}</b>, saytga kirishni tasdiqlaysizmi?\n\nFaqat hozir <b>o'zingiz</b> saytda «Continue with Telegram» ni bosgan bo'lsangiz tasdiqlang. Havolani boshqa odam yuborgan bo'lsa, bosmang: u akkauntingizga kirib oladi.`,
+      { reply_markup: { inline_keyboard: [[{ text: '✅ Ha, bu men', callback_data: `lgok:${row.code}` }], [{ text: "❌ Yo'q", callback_data: 'cancel' }]] } });
+  }
   if (await db.one("SELECT 1 AS x FROM users WHERE tg_chat_id = ? AND role = 'master'", [String(chat)])) return send(chat, "O'qituvchi akkaunti Telegram orqali kirmaydi: saytda login va parol bilan kiring.");
   if (!row.accept_terms) {
     await db.run("UPDATE tg_logins SET status = 'terms', chat_id = ? WHERE code = ?", [String(chat), row.code]);
@@ -501,7 +524,7 @@ async function loginContact(chat, msg, code) {
       reply_markup: { keyboard: [[{ text: '📱 Raqamni yuborish', request_contact: true }], [{ text: 'Bekor qilish' }]], resize_keyboard: true, one_time_keyboard: true },
     });
   }
-  if (msg.contact.user_id && msg.from?.id && msg.contact.user_id !== msg.from.id) return send(chat, "Iltimos, o'zingizning raqamingizni yuboring (pastdagi tugma orqali).");
+  if (!msg.contact.user_id || !msg.from?.id || msg.contact.user_id !== msg.from.id) return send(chat, "Iltimos, o'zingizning raqamingizni yuboring (pastdagi tugma orqali).");
   const row = await loginRow(code);
   if (!row) { await setState(chat, {}); return expired(chat); }
   const digits = String(msg.contact.phone_number || '').replace(/\D/g, '').slice(0, 15);
@@ -572,7 +595,7 @@ export function registerBotAdmin(app, { h, bad, requireMaster, requireStudent })
   app.get('/api/telegram/status', requireMaster, h(async (req, res) => {
     const token = await getKey('_tg_token');
     let code = await getKey('_tg_admin_code');
-    if (!code) { code = crypto.randomBytes(4).toString('hex'); await setKey('_tg_admin_code', code); }
+    if (!code) { code = crypto.randomBytes(8).toString('hex'); await setKey('_tg_admin_code', code); }
     let webhook = null;
     if (token) { try { webhook = await tg('getWebhookInfo', {}, token); } catch (e) { webhook = { error: e.message }; } }
     const s = await getSettings();
@@ -610,7 +633,7 @@ export function registerBotAdmin(app, { h, bad, requireMaster, requireStudent })
   }));
   app.post('/api/telegram/admins/reset', requireMaster, h(async (req, res) => {
     await setKey('_tg_admins', '[]');
-    await setKey('_tg_admin_code', crypto.randomBytes(4).toString('hex'));
+    await setKey('_tg_admin_code', crypto.randomBytes(8).toString('hex'));
     res.json({ ok: true });
   }));
 

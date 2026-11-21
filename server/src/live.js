@@ -284,6 +284,11 @@ export function registerLive(app, { h, bad, requireMaster, requireStudent }) {
         [master ? `teacher:${req.user.name || ''}` : 'student', b.id]);
       if (!r) return;
       if (!started && b.user_id && b.price) await moveBalance(t, b.user_id, b.price, 'refund', { note: `Live booking cancelled · ${b.slot_id} from ${ds(b.starts_on)}`, ref: `live-refund:${b.id}`, by: master ? req.user.id : null });
+      // a renewal gives Ultra up to the end of the next period right away: when it is cancelled (and refunded) the
+      // plan goes back to the end of the period that was really paid, or Ultra would stay for free
+      if (!started && b.user_id && b.granted) {
+        await t.run(`UPDATE users SET sub_until = LEAST(sub_until, ?::timestamptz) WHERE id = ? AND sub_plan = 't4'`, [tkMidnight(ds(b.starts_on)), b.user_id]);
+      }
     });
     if (master && b.user_id) await notifyUser(b.user_id, started ? `ℹ️ O'qituvchi live darslaringizni yakunladi (${b.slot_id}).` : `ℹ️ O'qituvchi live bandingizni bekor qildi, ${money(b.price)} hamyoningizga qaytarildi.`);
     await sweepLive().catch(() => {});

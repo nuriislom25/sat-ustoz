@@ -77,7 +77,16 @@ export function sprCorrect(given, accepted) {
   const gv = toNum(g);
   return accepted.some((a) => {
     const av = toNum(a);
-    if (gv != null && av != null) return Math.abs(gv - av) < 1e-4 || (Math.abs(av) > 0 && Math.abs(gv - av) / Math.abs(av) < 1e-3 && g.replace('-', '').length >= 5);
+    if (gv != null && av != null) {
+      if (Math.abs(gv - av) < 1e-9) return true;
+      // Digital SAT rule: a long decimal may be cut or rounded once it fills the answer box (5 characters,
+      // not counting the minus sign): for 2/3 both .6666 / 0.666 and .6667 / 0.667 are right
+      const dec = /^-?\d*\.(\d+)$/.exec(g);
+      if (!dec) return Math.abs(gv - av) < 1e-4; // a fraction like 1/3 against a stored 0.3333
+      if (g.replace('-', '').length < 5) return false;
+      const f = 10 ** dec[1].length;
+      return [Math.trunc(av * f) / f, Math.round(av * f) / f].some((x) => Math.abs(gv - x) < 1e-9);
+    }
     return g.toLowerCase().replace(/\s+/g, '') === String(a).toLowerCase().replace(/\s+/g, '');
   });
 }

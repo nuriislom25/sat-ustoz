@@ -90,6 +90,12 @@ const LEARN_STEPS = [1, 10]; // minutes
 /** Next state of a card for a rating 1 Again · 2 Hard · 3 Good · 4 Easy. */
 export const LADDER = [1, 3, 7, 14, 30];
 export function schedule(p, rating, now = Date.now()) {
+  // a review card rated before it is due (the same word again in a test, or a double tap) keeps its place: only
+  // "Again" moves it. Before, pressing Good several times in a row pushed a word months ahead in a minute.
+  const dueAt = p?.due_at ? new Date(p.due_at).getTime() : 0;
+  if (p && rating > 1 && p.state === 'review' && dueAt > now + 3600e3) {
+    return { state: p.state, ease: p.ease ?? 2.5, interval_days: p.interval_days ?? 0, step: p.step ?? 0, reps: (p.reps ?? 0) + 1, lapses: p.lapses ?? 0, ladder: !!p.ladder, due_at: new Date(dueAt).toISOString(), early: true };
+  }
   if (p?.ladder) return ladder(p, rating, now);
   const c = { state: p?.state || 'new', ease: p?.ease ?? 2.5, interval_days: p?.interval_days ?? 0, step: p?.step ?? 0, reps: (p?.reps ?? 0) + 1, lapses: p?.lapses ?? 0 };
   let due;

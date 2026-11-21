@@ -31,7 +31,11 @@ export const isOwner = (u) => u?.role === 'master' && u.admin_perms == null;
 
 /** Which section an API request belongs to (null = open to every staff account, 'owner' = owner only). */
 export function sectionOf(method, path) {
-  const p = path.replace(/^\/api/, '');
+  // Express matches routes case-insensitively and decodes %xx, so /api/FINANCE or /api/%66inance reach the same
+  // handler as /api/finance: compare the same normalised form, or a staff account could slip past its sections
+  let p = String(path || '');
+  try { p = decodeURIComponent(p); } catch { /* keep as is */ }
+  p = p.toLowerCase().replace(/\/{2,}/g, '/').replace(/^\/api/, '');
   const write = method !== 'GET';
   if (/^\/admins(\/|$)|^\/audit(\/|$)/.test(p)) return 'owner';
   // money first: wallets, receipts, plans given by hand, refunds
@@ -39,6 +43,9 @@ export function sectionOf(method, path) {
   if (/^\/telegram\/requests/.test(p)) return 'finance';
   if (/^\/students\/\d+\/(balance|subscription|sub|plan)(\/|$)/.test(p) && write) return 'finance';
   if (/^\/live\/bookings\/\d+\/cancel/.test(p)) return 'finance';
+  if (/^\/leaderboard\/(award|prizes)(\/|$)/.test(p) && write) return 'finance';
+  if (/^\/students\/\d+\/unlock(\/|$)/.test(p) && write) return 'finance';
+  if (/^\/(promo|promos|referrals)(\/|$)/.test(p)) return 'finance';
   if (/^\/(settings|speed|health)(\/|$)/.test(p)) return write || !p.startsWith('/settings') ? 'settings' : null;
   if (/^\/telegram(\/|$)/.test(p) && !/^\/telegram\/(webhook|link)/.test(p)) return 'settings';
   if (/^\/(plans|tiers)(\/|$)/.test(p) && write) return 'settings';

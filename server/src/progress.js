@@ -23,8 +23,21 @@ export function registerProgress(app, { h, bad, requireMaster, roadmapFor, userA
     const funnel = new Map(); // step id → { title, index, reached, passed, stuck: [] }
     const rows = [];
     const weekAgo = Date.now() - 7 * 86400e3;
+    // per-student numbers in three grouped queries (not three queries per student)
+    const map = async (sql) => new Map((await db.all(sql).catch(() => [])).map((r) => [r.user_id, r]));
+    const [quizBy, checkBy, vocabBy] = await Promise.all([
+      map('SELECT user_id, ROUND(AVG(100.0 * score / NULLIF(total, 0))) AS avg, COUNT(*) AS n FROM attempts WHERE finished_at IS NOT NULL GROUP BY user_id'),
+      map('SELECT user_id, COUNT(*) AS n, SUM(CASE WHEN passed THEN 1 ELSE 0 END) AS passed FROM lesson_checks WHERE finished_at IS NOT NULL GROUP BY user_id'),
+      map('SELECT user_id, ROUND(AVG(100.0 * score / NULLIF(total, 0))) AS avg FROM vocab_tests GROUP BY user_id'),
+    ]);
+    // the roadmap of each student, a few at a time
+    const roads = new Map();
+    for (let i = 0; i < students.length; i += 8) {
+      const part = students.slice(i, i + 8);
+      (await Promise.all(part.map((s) => roadmapFor({ ...s, role: 'student' })))).forEach((r, k) => roads.set(part[k].id, r));
+    }
     for (const s of students) {
-      const { steps, estimate } = await roadmapFor({ ...s, role: 'student' });
+      const { steps, estimate } = roads.get(s.id);
       const cur = steps.find((x) => x.status === 'current');
       const idle = !s.last_day || new Date(s.last_day).getTime() < weekAgo;
       steps.forEach((st, i) => {
@@ -34,9 +47,7 @@ export function registerProgress(app, { h, bad, requireMaster, roadmapFor, userA
         if (st.status === 'current' && idle) f.stuck.push({ id: s.id, name: s.name, last_day: s.last_day });
         funnel.set(st.id, f);
       });
-      const quiz = await db.one('SELECT ROUND(AVG(100.0 * score / NULLIF(total, 0))) AS avg, COUNT(*) AS n FROM attempts WHERE user_id = ? AND finished_at IS NOT NULL', [s.id]);
-      const checks = await db.one('SELECT COUNT(*) AS n, SUM(CASE WHEN passed THEN 1 ELSE 0 END) AS passed FROM lesson_checks WHERE user_id = ? AND finished_at IS NOT NULL', [s.id]);
-      const vocab = await db.one('SELECT ROUND(AVG(100.0 * score / NULLIF(total, 0))) AS avg FROM vocab_tests WHERE user_id = ?', [s.id]).catch(() => ({ avg: null }));
+      const quiz = quizBy.get(s.id); const checks = checkBy.get(s.id); const vocab = vocabBy.get(s.id);
       rows.push({ id: s.id, name: s.name, group: s.group_name || '', group_ids: (s.group_ids || []).map(Number), step: cur ? `${steps.indexOf(cur) + 1}. ${cur.title}` : steps.length && steps.every((x) => x.status === 'done') ? 'Finished' : '—',
         steps_done: steps.filter((x) => x.status === 'done').length, steps_total: steps.length,
         checks: Number(checks?.n || 0), checks_passed: Number(checks?.passed || 0), quiz_avg: quiz?.avg == null ? null : Number(quiz.avg), quizzes: Number(quiz?.n || 0),

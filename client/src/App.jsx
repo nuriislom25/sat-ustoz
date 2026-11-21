@@ -4,6 +4,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-
 import { OfflineBar } from './offline.js';
 import { UpdateBar } from './updates.jsx';
 import ActivityTracker from './components/ActivityTracker.jsx';
+import { api } from './api.js';
 import { useAuth } from './context.jsx';
 import { Spinner } from './components/ui.jsx';
 import { LimitWall } from './usage.jsx';
@@ -106,6 +107,16 @@ export default function App() {
   useEffect(() => { if (!loading && user?.role !== 'master') countVisit(loc.pathname); }, [loc.pathname, loading, user?.role]);
   // a guest who finished a practice test and then signed up goes back to that result (now with explanations)
   const navTo = useNavigate();
+  // "invite a friend": ?ref=CODE is kept until the visitor has an account, then linked once
+  useEffect(() => {
+    const r = new URLSearchParams(loc.search).get('ref');
+    if (r && /^[A-Za-z0-9_-]{4,24}$/.test(r)) { try { localStorage.setItem('ref-code', JSON.stringify({ code: r, at: Date.now() })); } catch { /* ignore */ } }
+  }, [loc.search]);
+  useEffect(() => {
+    if (!user || user.role !== 'student') return;
+    let ref = null; try { ref = JSON.parse(localStorage.getItem('ref-code') || 'null'); } catch { /* ignore */ }
+    if (ref?.code && Date.now() - ref.at < 30 * 864e5) api.post('/me/referral/claim', { code: ref.code }).catch(() => {}).finally(() => { try { localStorage.removeItem('ref-code'); } catch { /* ignore */ } });
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!user || user.role !== 'student') return;
     let id = null; try { id = localStorage.getItem('pt-claim'); } catch { /* ignore */ }

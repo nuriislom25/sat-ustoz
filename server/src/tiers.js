@@ -215,7 +215,7 @@ export function registerTiers(app, { h, bad, requireMaster, requireStudent }) {
   }));
 
   app.post('/api/plans/buy', requireStudent, h(async (req, res) => {
-    res.json(await buyPlan(req.user.id, req.body?.plan, req.body?.months, req.body?.key, req.body?.subject));
+    res.json(await buyPlan(req.user.id, req.body?.plan, req.body?.months, req.body?.key, req.body?.subject, req.body?.promo));
   }));
 
   app.get('/api/me/balance', h(async (req, res) => {
@@ -295,14 +295,18 @@ export function registerTiers(app, { h, bad, requireMaster, requireStudent }) {
 /* ---------- sign-in brute-force protection ---------- */
 const FAIL_WINDOW_MIN = 15;
 const FAIL_MAX = 8;
-export async function tooManyFails(key) {
-  const r = await db.one(`SELECT n FROM auth_fails WHERE key = ? AND first_at > now() - interval '${FAIL_WINDOW_MIN} minutes'`, [key]);
-  return Number(r?.n || 0) >= FAIL_MAX;
+// a key's window is the one it is checked with; noteFail keeps the counter for the longest window it is used with
+const WINDOWS = { 'tgadmin:': 60, 'day:': 1440, 'ip:': 15 };
+const windowOf = (key) => Object.entries(WINDOWS).find(([p]) => key.startsWith(p))?.[1] || FAIL_WINDOW_MIN;
+export async function tooManyFails(key, max = FAIL_MAX, minutes = windowOf(key)) {
+  const r = await db.one(`SELECT n FROM auth_fails WHERE key = ? AND first_at > now() - (? || ' minutes')::interval`, [key, String(Math.round(minutes))]);
+  return Number(r?.n || 0) >= max;
 }
 export async function noteFail(key) {
+  const m = String(windowOf(key));
   await db.run(`INSERT INTO auth_fails (key, n, first_at) VALUES (?, 1, now())
-    ON CONFLICT (key) DO UPDATE SET n = CASE WHEN auth_fails.first_at > now() - interval '${FAIL_WINDOW_MIN} minutes' THEN auth_fails.n + 1 ELSE 1 END,
-    first_at = CASE WHEN auth_fails.first_at > now() - interval '${FAIL_WINDOW_MIN} minutes' THEN auth_fails.first_at ELSE now() END`, [key]);
+    ON CONFLICT (key) DO UPDATE SET n = CASE WHEN auth_fails.first_at > now() - (? || ' minutes')::interval THEN auth_fails.n + 1 ELSE 1 END,
+    first_at = CASE WHEN auth_fails.first_at > now() - (? || ' minutes')::interval THEN auth_fails.first_at ELSE now() END`, [key, m, m]);
 }
 export const clearFails = (key) => db.run('DELETE FROM auth_fails WHERE key = ?', [key]);
 
@@ -335,7 +339,8 @@ export const MAX_TOPUP = 10_000_000;
  * Buy a plan from the wallet: one transaction takes the money and extends the subscription.
  * `key` (a random id from the client) makes a double click charge only once.
  */
-export async function buyPlan(userId, tierId, months, key, subject = 'english') {
+export async function buyPlan(userId, tierId, months, key, subject = 'english', promo = '') {
+  const growth = await import('./growth.js');
   const s = await getSettings();
   const tier = readTiers(s).find((t) => t.id === tierId);
   const which = subject === 'both' ? ['english', 'math'] : [subjectOf(subject)];
@@ -353,11 +358,17 @@ export async function buyPlan(userId, tierId, months, key, subject = 'english') 
     const other = which.length === 1 && subActive(asSubject(u, which[0] === 'math' ? 'english' : 'math'));
     const pct = which.length === 2 || other ? bundlePct(s) : 0;
     const base = which.reduce((sum, w) => sum + (w === 'math' ? tier.math_price || tier.price : tier.price), 0) * months;
-    const price = Math.round((base * (100 - pct)) / 100);
-    const label = `${tier.name}${which.length === 2 ? ' · English + Math' : which[0] === 'math' ? ' · Math' : ''} · ${months} mo${pct ? ` · -${pct}%` : ''}`;
+    const before = Math.round((base * (100 - pct)) / 100);
+    // a promo code is checked and used inside this transaction: it can never be used more often than allowed
+    const pr = promo ? await growth.checkPromo(t, promo, userId, { plan: tier.id, subject: which.length === 2 ? 'any' : which[0] }) : null;
+    const price = pr ? Math.round((before * (100 - pr.pct)) / 100) : before;
+    const label = `${tier.name}${which.length === 2 ? ' · English + Math' : which[0] === 'math' ? ' · Math' : ''} · ${months} mo${pct ? ` · -${pct}%` : ''}${pr ? ` · ${pr.code} -${pr.pct}%` : ''}`;
     const after = await moveBalance(t, userId, -price, 'subscription', { note: label, ref });
     if (after == null) throw Object.assign(new Error('Not enough money in your wallet. Top it up first.'), { status: 402 });
-    const out = { balance: after, plan: tier.id, price, discount: pct };
+    if (pr) await growth.usePromo(t, pr, userId, { plan: tier.id, price, discount: before - price });
+    // the first real payment of a student who came with a friend's link pays both their bonuses
+    if (!(await t.one("SELECT 1 AS x FROM payments WHERE user_id = ? AND amount > 0 LIMIT 1", [userId]))) await growth.rewardReferral(t, userId, price);
+    const out = { balance: after, plan: tier.id, price, discount: pct, promo: pr ? { code: pr.code, pct: pr.pct, saved: before - price } : null };
     for (const w of which) {
       const cur = asSubject(u, w);
       const from = subActive(cur) && cur.sub_plan === tier.id ? new Date(cur.sub_until) : new Date();

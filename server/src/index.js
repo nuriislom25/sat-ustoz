@@ -27,7 +27,8 @@ import { migrateDrip, registerDrip, unlocksFor, dripDays } from './drip.js';
 import { migrateLive, registerLive } from './live.js';
 import { migrateReview, registerReview } from './review.js';
 import { migrateVisits, registerVisits } from './visits.js';
-import { migrateAdmins, registerAdmins, adminGuard } from './admins.js';
+import { migrateAdmins, registerAdmins, adminGuard, permsOf } from './admins.js';
+import { migrateGrowth, registerGrowth } from './growth.js';
 import { migrateCalib } from './calibrate.js';
 import { registerQuality } from './quality.js';
 import { migrateAssignments, registerAssignments, assignedQuizOpen, assignmentBlock } from './assignments.js';
@@ -154,6 +155,18 @@ if (!schemaOk) {
   await migrateFolders();
   await migrateSubjects();
   await migrateQuestionImages();
+  await migrateGrowth();
+  // indexes for the leaderboard and teacher pages (they read by time, and by student)
+  await db.exec(`
+CREATE INDEX IF NOT EXISTS idx_qba_time ON qbank_answers(answered_at);
+CREATE INDEX IF NOT EXISTS idx_attempts_finished ON attempts(finished_at) WHERE finished_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_attempts_user_quiz ON attempts(user_id, quiz_id, finished_at);
+CREATE INDEX IF NOT EXISTS idx_practice_finished ON practice_sessions(finished_at) WHERE finished_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_vocab_last ON vocab_progress(last_at);
+CREATE INDEX IF NOT EXISTS idx_game_players_time ON game_players(joined_at);
+CREATE INDEX IF NOT EXISTS idx_vocab_tests_user ON vocab_tests(user_id);
+CREATE INDEX IF NOT EXISTS idx_payments_user ON payments(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_lesson_checks_done ON lesson_checks(user_id) WHERE finished_at IS NOT NULL;`).catch((e) => console.error('[indexes]', e.message));
   // after a database is copied, the id counters can stay behind the rows (new inserts then fail with "duplicate key"):
   // move every id counter past the highest id in its table
   try {
@@ -312,14 +325,25 @@ app.get('/api/config', h(async (req, res) => {
 // ---------- auth ----------
 const TERMS_MSG = 'Please accept the terms of use (oferta) to continue';
 
+const DUMMY_HASH = bcrypt.hashSync('not-a-real-password-' + Math.random(), 12);
 app.post('/api/auth/login', h(async (req, res) => {
   const { login, password } = req.body || {};
-  const id = String(login || '').trim().toLowerCase();
-  const failKey = `login:${id}`;
-  if (id && (await tooManyFails(failKey))) return bad(res, 'Too many wrong passwords. Wait 15 minutes and try again.', 429);
+  const id = String(login || '').trim().toLowerCase().slice(0, 120);
+  const ipKey = `ip:${clientIp(req)}`;
+  // one network trying many accounts (password spraying) is stopped as well as many tries on one account
+  if (await tooManyFails(ipKey, 20)) return bad(res, 'Too many wrong passwords from this network. Wait 15 minutes and try again.', 429);
   const u = id && (await db.one('SELECT * FROM users WHERE login = ? OR email = ?', [id, id]));
-  if (!u || !u.password_hash || !bcrypt.compareSync(String(password || ''), u.password_hash)) {
-    if (id && u?.password_hash) await noteFail(failKey);
+  // the counter belongs to the account (its login and its email share it); teacher accounts get fewer tries a day
+  const failKey = `login:${u ? `u${u.id}` : id}`;
+  const dayKey = `day:${u ? `u${u.id}` : id}`;
+  if (id && ((await tooManyFails(failKey, u?.role === 'master' ? 5 : 8)) || (await tooManyFails(dayKey, u?.role === 'master' ? 50 : 100)))) {
+    return bad(res, 'Too many wrong passwords. Wait and try again later, or ask the teacher to reset the password.', 429);
+  }
+  // compare a password even for unknown logins, so the answer takes the same time either way
+  const okPw = bcrypt.compareSync(String(password || '').slice(0, 200), u?.password_hash || DUMMY_HASH);
+  if (!u || !u.password_hash || !okPw) {
+    await noteFail(ipKey);
+    if (id) { await noteFail(failKey); await noteFail(dayKey); }
     if (u?.role === 'master') { await audit(req, 'login_failed', `teacher ${u.id}`); notifyAdmins(`⚠️ Teacher sign-in failed (wrong password). IP: ${clientIp(req)}`); }
     // one answer for "no such account", "wrong password" and "Google account": nobody can probe which logins exist
     return bad(res, 'Incorrect login or password. If you signed up with Google, tap “Continue with Google”.', 401);
@@ -438,6 +462,7 @@ registerProgress(app, { h, bad, requireMaster, roadmapFor, userAnalytics });
 registerMistakes(app, { h, bad, requireStudent, requireMaster });
 registerFocus(app, { h, bad, requireStudent });
 registerPictures(app, { h, bad, requireMaster });
+registerGrowth(app, { h, bad, requireMaster, requireStudent });
 
 app.get('/api/me', h(async (req, res) => res.json(await mepayload(req.user))));
 app.get('/api/sat-dates', (req, res) => res.json(SAT_DATES));
@@ -449,17 +474,26 @@ app.get('/api/sat-dates', (req, res) => res.json(SAT_DATES));
  */
 const WEEK_START = "date_trunc('week', now() AT TIME ZONE 'Asia/Tashkent') AT TIME ZONE 'Asia/Tashkent'";
 const shortName = (n) => { const w = String(n || '').trim().split(/\s+/); return w[0] + (w[1] ? ` ${w[1][0]}.` : ''); };
+// fair play: only a student's first try of a quiz and first-try right answers in the Question Bank count, and
+// practice tests, Word Arena and time on the platform have a daily ceiling (the prizes are real money)
+const LB = { practice_day: 3, arena_day: 300, minutes_day: 180 };
 /** Students ranked by points between `since` and `until` (SQL expressions). */
 async function boardRows(since, until, meId, onlyIds = null) {
   const rng = (col) => `${col} >= ${since} AND ${col} < ${until}`;
   const rows = await db.all(`
     WITH pts AS (
-      SELECT user_id, 10 * COUNT(*) AS p FROM qbank_answers WHERE correct AND ${rng('answered_at')} GROUP BY user_id
-      UNION ALL SELECT user_id, 10 * SUM(score) FROM practice_sessions WHERE user_id IS NOT NULL AND ${rng('finished_at')} GROUP BY user_id
-      UNION ALL SELECT user_id, 10 * SUM(CASE WHEN total > 0 THEN score ELSE 0 END) FROM attempts WHERE ${rng('finished_at')} GROUP BY user_id
+      SELECT user_id, 10 * COUNT(*) AS p FROM qbank_answers WHERE correct AND first_correct AND ${rng('answered_at')} GROUP BY user_id
+      UNION ALL SELECT user_id, 10 * SUM(score) FROM (
+        SELECT user_id, score, ROW_NUMBER() OVER (PARTITION BY user_id, (finished_at AT TIME ZONE 'Asia/Tashkent')::date ORDER BY finished_at) AS n
+        FROM practice_sessions WHERE user_id IS NOT NULL AND ${rng('finished_at')}) ps WHERE n <= ${LB.practice_day} GROUP BY user_id
+      UNION ALL SELECT user_id, 10 * SUM(CASE WHEN total > 0 THEN score ELSE 0 END) FROM (
+        SELECT DISTINCT ON (user_id, quiz_id) user_id, score, total, finished_at FROM attempts WHERE finished_at IS NOT NULL ORDER BY user_id, quiz_id, finished_at) fa
+        WHERE ${rng('finished_at')} GROUP BY user_id
       UNION ALL SELECT user_id, 2 * COUNT(*) FROM vocab_progress WHERE ${rng('last_at')} GROUP BY user_id
-      UNION ALL SELECT user_id, 5 * SUM(correct) FROM game_players WHERE user_id IS NOT NULL AND ${rng('joined_at')} GROUP BY user_id
-      UNION ALL SELECT user_id, SUM(seconds) / 60 FROM user_activity WHERE day >= (${since})::date AND day < (${until})::date GROUP BY user_id
+      UNION ALL SELECT user_id, SUM(LEAST(p, ${LB.arena_day})) FROM (
+        SELECT user_id, 5 * SUM(correct) AS p FROM game_players WHERE user_id IS NOT NULL AND ${rng('joined_at')} GROUP BY user_id, (joined_at AT TIME ZONE 'Asia/Tashkent')::date) gp GROUP BY user_id
+      UNION ALL SELECT user_id, SUM(LEAST(s, ${LB.minutes_day * 60})) / 60 FROM (
+        SELECT user_id, SUM(seconds) AS s FROM user_activity WHERE day >= (${since})::date AND day < (${until})::date GROUP BY user_id, day) ua GROUP BY user_id
     )
     SELECT u.id, u.name, u.avatar_url, COALESCE(SUM(pts.p), 0) AS points
     FROM users u LEFT JOIN pts ON pts.user_id = u.id
@@ -626,6 +660,7 @@ app.get('/api/settings', requireMaster, h(async (req, res) => {
   const secret = (v) => (v ? `••••${String(v).slice(-4)}` : '');
   res.json({ ...st, bunny_api_key: secret(st.bunny_api_key), bunny_token_key: secret(st.bunny_token_key), giphy_key: secret(st.giphy_key), giphy_env: !!process.env.GIPHY_API_KEY, bunny_env: !!process.env.BUNNY_API_KEY, google_configured: !!(process.env.GOOGLE_CLIENT_ID || st.google_client_id), google_env: !!process.env.GOOGLE_CLIENT_ID, database: DB_KIND });
 }));
+const OWNER_SETTINGS = ['require_subscription', 'price_month', 'price_quarter', 'currency', 'pay_card', 'pay_holder', 'tiers', 'fm_extra_price', 'lesson_unlock_price', 'quiz_extra_price', 'free_q_day', 'math_free_day', 'math_free_lessons', 'bundle_discount', 'fm_free', 'fm_month', 'fm_quarter', 'live_link', 'promo_on', 'ref_bonus', 'ref_friend_bonus'];
 app.put('/api/settings', requireMaster, h(async (req, res) => {
   const b = req.body || {};
   const digits = (v) => String(v ?? '').replace(/\D/g, '').slice(0, 12);
@@ -650,6 +685,7 @@ app.put('/api/settings', requireMaster, h(async (req, res) => {
   if ('free_q_day' in b) patch.free_q_day = String(Math.max(0, Math.min(999, Math.round(+b.free_q_day || 0))));
   if ('math_free_day' in b) patch.math_free_day = String(Math.max(0, Math.min(999, Math.round(+b.math_free_day || 0))));
   if ('math_free_lessons' in b) patch.math_free_lessons = String(Math.max(0, Math.min(50, Math.round(+b.math_free_lessons || 0))));
+  for (const k of ['ref_bonus', 'ref_friend_bonus']) if (k in b) patch[k] = String(Math.max(0, Math.min(1_000_000, Number(digits(b[k])) || 0)));
   if ('bundle_discount' in b) patch.bundle_discount = String(Math.max(0, Math.min(90, Math.round(+b.bundle_discount || 0))));
   if ('bunny_library_id' in b) patch.bunny_library_id = String(b.bunny_library_id || '').replace(/\D/g, '').slice(0, 12);
   for (const k of ['bunny_api_key', 'bunny_token_key', 'giphy_key']) if (k in b && !String(b[k]).startsWith('••••')) patch[k] = String(b[k] || '').trim().replace(/[^\w-]/g, '').slice(0, 100);
@@ -657,6 +693,13 @@ app.put('/api/settings', requireMaster, h(async (req, res) => {
   if ('live_note' in b) patch.live_note = String(b.live_note || '').trim().slice(0, 300);
   for (const k of ['fm_free', 'fm_month', 'fm_quarter']) if (k in b) patch[k] = String(Math.max(0, Math.min(99, Math.round(+b[k] || 0))));
   if ('telegram_bot' in b) patch.telegram_bot = String(b.telegram_bot || '').trim().replace(/^@/, '').replace(/[^A-Za-z0-9_]/g, '').slice(0, 64);
+  // money settings (where students pay, prices, free mode) are for the main teacher account only:
+  // a staff admin with Settings could otherwise point payments to another card or make every plan free
+  if (permsOf(req.user)) {
+    const cur = await getSettings();
+    const owned = OWNER_SETTINGS.filter((k) => k in patch && String(patch[k] ?? '') !== String(cur[k] ?? ''));
+    if (owned.length) return bad(res, 'Only the main teacher account can change payments, prices and free mode', 403);
+  }
   const out = await setSettings(patch);
   await audit(req, 'settings_changed', '', Object.keys(patch).join(', '));
   res.json({ ...out, bunny_api_key: out.bunny_api_key ? `••••${out.bunny_api_key.slice(-4)}` : '', bunny_token_key: out.bunny_token_key ? `••••${out.bunny_token_key.slice(-4)}` : '', giphy_key: out.giphy_key ? `••••${out.giphy_key.slice(-4)}` : '' });
@@ -674,13 +717,29 @@ const studentRow = `SELECT u.id, u.name, u.login, u.email, u.phone, u.provider, 
   (SELECT MAX(day) FROM user_activity x WHERE x.user_id = u.id) AS last_seen_day
   FROM users u WHERE u.role = 'student'`;
 const withSub = (s) => ({ ...s, group_ids: (s.group_ids || []).map(Number), sub_active: subActive(s), math_sub_active: subActive(asSubject(s, 'math')) });
+/** Estimates, accuracy and streak from a student's finished quizzes (same rules as userAnalytics). */
+function quickStats(list) {
+  const estimates = {};
+  for (const sec of ['english', 'math']) {
+    const last = list.filter((a) => a.section === sec).slice(-5);
+    estimates[sec] = estimateScore(last.reduce((x, a) => x + a.score, 0), last.reduce((x, a) => x + a.total, 0));
+  }
+  const tot = list.reduce((x, a) => x + a.total, 0); const ok = list.reduce((x, a) => x + a.score, 0);
+  const key = (iso) => new Date(new Date(iso).getTime() + 5 * 3600e3).toISOString().slice(0, 10);
+  const days = new Set(list.map((a) => key(a.finished_at)));
+  let streak = 0; let c = new Date(`${key(new Date().toISOString())}T00:00:00Z`);
+  if (!days.has(c.toISOString().slice(0, 10))) c = new Date(c.getTime() - 864e5);
+  while (days.has(c.toISOString().slice(0, 10))) { streak++; c = new Date(c.getTime() - 864e5); }
+  return { estimates, accuracy: tot ? Math.round((ok / tot) * 100) : 0, streak };
+}
 app.get('/api/students', requireMaster, h(async (req, res) => {
   const rows = await db.all(studentRow + ' ORDER BY u.created_at DESC, u.id DESC');
-  const out = await Promise.all(rows.map(async (s) => {
-    const a = await userAnalytics(s.id);
-    return { ...withSub(s), estimates: a.estimates, accuracy: a.totals.accuracy, streak: a.streak };
-  }));
-  res.json(out);
+  // one query for everyone's finished quizzes instead of three per student (the list stays fast with 1000+ students)
+  const all = await db.all(`SELECT a.user_id, a.score, a.total, a.finished_at, q.section FROM attempts a JOIN quizzes q ON q.id = a.quiz_id
+    WHERE a.finished_at IS NOT NULL ORDER BY a.finished_at`);
+  const by = new Map();
+  for (const a of all) { if (!by.has(a.user_id)) by.set(a.user_id, []); by.get(a.user_id).push(a); }
+  res.json(rows.map((s) => ({ ...withSub(s), ...quickStats(by.get(s.id) || []) })));
 }));
 app.get('/api/students/:id', requireMaster, h(async (req, res) => {
   const s = await db.one(studentRow + ' AND u.id = ?', [req.params.id]);
@@ -690,10 +749,22 @@ app.get('/api/students/:id', requireMaster, h(async (req, res) => {
 }));
 // time on the platform: the student app sends a ping every ~30 s while the tab is visible and in use
 const SECTIONS = ['home', 'lessons', 'quiz', 'practice', 'qbank', 'mock', 'vocab', 'arena', 'placement', 'other'];
+const lastPing = new Map();
 app.post('/api/activity', h(async (req, res) => {
   if (req.user.role !== 'student') return res.json({ ok: true });
   const section = SECTIONS.includes(req.body?.section) ? req.body.section : 'other';
-  const seconds = Math.max(0, Math.min(600, Math.round(Number(req.body?.seconds) || 0)));
+  // the browser says how long it was active; the server never counts more time than really passed since the last
+  // ping (a script sending pings in a loop gets nothing extra), and at most 8 hours a day count at all
+  const now = Date.now();
+  const last = lastPing.get(req.user.id);
+  lastPing.set(req.user.id, now);
+  if (lastPing.size > 20000) lastPing.clear();
+  const room = last ? Math.max(0, (now - last) / 1000 + 5) : 60;
+  let seconds = Math.max(0, Math.min(600, room, Math.round(Number(req.body?.seconds) || 0)));
+  if (seconds) {
+    const t = await db.one(`SELECT COALESCE(SUM(seconds), 0) AS s FROM user_activity WHERE user_id = ? AND day = (now() AT TIME ZONE 'Asia/Tashkent')::date`, [req.user.id]);
+    seconds = Math.max(0, Math.min(seconds, 8 * 3600 - Number(t.s)));
+  }
   if (seconds) await db.run(`INSERT INTO user_activity (user_id, day, section, seconds) VALUES (?, (now() AT TIME ZONE 'Asia/Tashkent')::date, ?, ?)
     ON CONFLICT (user_id, day, section) DO UPDATE SET seconds = user_activity.seconds + EXCLUDED.seconds`, [req.user.id, section, seconds]);
   res.json({ ok: true });
@@ -801,6 +872,11 @@ app.post('/api/students/:id/reset-password', requireMaster, h(async (req, res) =
 }));
 app.delete('/api/students/:id', requireMaster, h(async (req, res) => {
   const st = await db.one("SELECT name, email, login, balance FROM users WHERE id = ? AND role = 'student'", [req.params.id]);
+  // deleting an account also deletes its wallet history: a student with money or payments can only be removed by the owner
+  if (st && permsOf(req.user)) {
+    const paid = Number(st.balance) > 0 || (await db.one('SELECT 1 AS x FROM payments WHERE user_id = ? LIMIT 1', [req.params.id]));
+    if (paid) return bad(res, 'This student has payments or money in the wallet: only the main teacher account can delete them', 403);
+  }
   await db.run("DELETE FROM users WHERE id = ? AND role = 'student'", [req.params.id]);
   if (st) await audit(req, 'student_deleted', `student ${req.params.id}`, `${st.name} <${st.email || st.login}> balance ${st.balance}`);
   res.json({ ok: true });

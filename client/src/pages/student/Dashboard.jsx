@@ -5,8 +5,9 @@ import { Extras } from './Subscribe.jsx';
 import { api, daysUntil, fmtDate } from '../../api.js';
 import { useAuth } from '../../context.jsx';
 import { satScoreFromCount } from '../../../../server/src/scoring.js';
-import { Bars, Card, CountUp, Gate, LineChart, Ring, pctTone, useAsync } from '../../components/ui.jsx';
+import { Card, CountUp, Gate, LineChart, Ring, pctTone, useAsync } from '../../components/ui.jsx';
 import StudentCard from '../../components/StudentCard.jsx';
+import { FocusTopics, InviteCard } from '../../components/Growth.jsx';
 import PathTrack from '../../components/PathTrack.jsx';
 import { PaywallBanner } from './Quizzes.jsx';
 import { IconArrow, IconBolt, IconCheck, IconClock, IconQuiz, IconTrophy, IconTask } from '../../components/icons.jsx';
@@ -84,10 +85,7 @@ export default function Dashboard() {
                     </div>
                   )}
                 </Card>
-                <Card className="d-weak">
-                  <div className="card-title"><h2>{"Weak topics"}</h2></div>
-                  {all.weak.length ? <Bars rows={all.weak.slice(0, 4)} /> : <p className="muted">No weak topics yet: answer a few more questions.</p>}
-                </Card>
+                <div className="d-weak"><FocusTopics /></div>
               </div>
 
               <div className="dash-col dash-side">
@@ -124,6 +122,7 @@ export default function Dashboard() {
                     <IconArrow width={16} height={16} />
                   </Link>
                 )}
+                <div className="d-invite"><InviteCard compact /></div>
                 <div className="d-extra"><Extras access={user.access} stacked /></div>
               </div>
             </div>

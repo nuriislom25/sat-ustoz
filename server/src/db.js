@@ -32,6 +32,9 @@ if (process.env.DATABASE_URL) {
   pg.types.setTypeParser(1700, (v) => parseFloat(v)); // numeric
   pg.types.setTypeParser(1184, iso); // timestamptz → ISO string
   pg.types.setTypeParser(1114, (v) => iso(v + 'Z')); // timestamp
+  // DATE stays 'YYYY-MM-DD': as a JS Date it became local midnight, and on a server ahead of UTC (Tashkent, +5)
+  // toISOString() then gave the day before — live lesson dates, attendance and streak days moved back a day
+  pg.types.setTypeParser(1082, (v) => v);
   const url = process.env.DATABASE_URL;
   const local = /localhost|127\.0\.0\.1/.test(url);
   // keep connections open between requests (a new TLS connection to the database costs several round trips) and allow
@@ -64,6 +67,7 @@ if (process.env.DATABASE_URL) {
     [types.NUMERIC]: (v) => parseFloat(v),
     [types.TIMESTAMPTZ]: iso,
     [types.TIMESTAMP]: (v) => iso(v + 'Z'),
+    [types.DATE]: (v) => v,
   };
   const pgl = new PGlite(path.join(DATA_DIR, 'pg'), { parsers });
   await pgl.waitReady;
@@ -354,6 +358,8 @@ const DEFAULT_SETTINGS = {
   fm_quarter: '7',  // (old, replaced by tiers)
   tiers: '',        // JSON: names, prices and limits of the 4 plans (see tiers.js)
   lb_prizes: '',           // leaderboard prizes for places 1–3 (JSON: [{ text, bonus }])
+  ref_bonus: '20000',      // invite a friend: the inviter's bonus after the friend's first paid plan
+  ref_friend_bonus: '10000', // ... and the friend's welcome bonus
   lb_prize_note: '',
   quiz_extra_price: '3000', // one quiz beyond the plan's daily quizzes, paid from the balance
   drip_days: '7', // free students: a new roadmap lesson opens this many days after passing the previous one

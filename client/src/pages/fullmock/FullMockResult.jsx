@@ -8,6 +8,8 @@ import { rich } from '../../components/Rich.jsx';
 import AskTeacher from '../../components/AskTeacher.jsx';
 import ReportMistake from '../../components/ReportMistake.jsx';
 import { FocusLine } from '../../components/Proctor.jsx';
+import { ShareScore, firstName, today } from '../../components/Growth.jsx';
+import { useAuth } from '../../context.jsx';
 
 const L = ['A', 'B', 'C', 'D'];
 
@@ -19,6 +21,7 @@ export default function FullMockResult() {
 }
 
 function Result({ a }) {
+  const { user } = useAuth();
   const r = a.result;
   const [tab, setTab] = useState('wrong');
   const [mod, setMod] = useState(0);
@@ -38,6 +41,7 @@ function Result({ a }) {
           <div className="row wrap" style={{ gap: 10, marginTop: 14 }}>
             <Link className="btn sun lg" to="/full-mocks">Full Mocks <IconArrow /></Link>
             <Link className="btn on-dark lg" to="/question-bank">Practise weak skills</Link>
+            <ShareScore className="btn on-dark lg" card={{ score: r.score, low: r.low, high: r.high, label: 'My SAT Reading & Writing mock score', correct: r.m1 + r.m2, total, name: firstName(user?.name), date: today() }} />
           </div>
         </div>
         <div className="mr-side">

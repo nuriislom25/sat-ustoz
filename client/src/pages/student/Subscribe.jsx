@@ -1,5 +1,6 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import { InviteCard } from '../../components/Growth.jsx';
 import { useAuth, useToast } from '../../context.jsx';
 import { api, fmtDate } from '../../api.js';
 import { getConfig } from '../../config.js';
@@ -123,7 +124,8 @@ export default function Subscribe() {
                 {t.live && <small className="muted tier-self">Fixed time, 3 lessons a week, one student per time</small>}
                 {!t.live && t.id === 't3' && <small className="muted tier-self">Everything, at your own pace</small>}
                 {t.live ? <Link className="btn sun" to="/live">{mine ? 'My lesson time' : 'Choose a lesson time'}</Link> : <>
-                {bal.balance >= price && <button className="btn primary" onClick={() => setBuy({ tier: t, subject: subj, price })}>{mine ? 'Extend from wallet' : 'Buy from wallet'}</button>}
+                {bal.balance >= price ? <button className="btn primary" onClick={() => setBuy({ tier: t, subject: subj, price })}>{mine ? 'Extend from wallet' : 'Buy from wallet'}</button>
+                  : bal.balance > 0 && <button className="btn ghost sm" onClick={() => setBuy({ tier: t, subject: subj, price })}>I have a promo code</button>}
                 {mine ? <span className="chip good" style={{ justifySelf: 'start' }}><IconCheck width={14} height={14} /> Your plan</span>
                   : bal.balance >= price ? null : cfg?.telegram_bot ? <button className="btn primary" disabled={opening} onClick={pay}><IconSend width={18} height={18} /> Pay via Telegram</button>
                     : <a className="btn soft" href="#pay">Pay by card</a>}
@@ -147,6 +149,7 @@ export default function Subscribe() {
           </Card>
 
           <Extras access={user.access} />
+          <InviteCard />
           {buy && <BuyModal {...buy} balance={bal.balance} currency={p.currency} onClose={() => setBuy(null)} onDone={() => { setBuy(null); st.reload(); refresh(); }} />}
 
           {bal.history.length > 0 && (
@@ -154,7 +157,7 @@ export default function Subscribe() {
               <h3 className="sr-h">Balance history</h3>
               <div className="table-wrap"><table className="t">
                 <thead><tr><th>Date</th><th>What</th><th>Amount</th><th>Balance</th></tr></thead>
-                <tbody>{bal.history.map((h, i) => <tr key={i}><td className="nowrap">{fmtDate(h.created_at)}</td><td>{h.reason === 'top_up' ? 'Top-up' : h.reason === 'full_mock' ? `Full mock${h.note ? ` · ${h.note}` : ''}` : h.note || h.reason}</td>
+                <tbody>{bal.history.map((h, i) => <tr key={i}><td className="nowrap">{fmtDate(h.created_at)}</td><td>{h.reason === 'top_up' ? 'Top-up' : h.reason === 'full_mock' ? `Full mock${h.note ? ` · ${h.note}` : ''}` : h.reason === 'prize' ? `Leaderboard prize${h.note ? ` · ${h.note}` : ''}` : h.note || h.reason}</td>
                   <td className={h.amount > 0 ? 'good-text' : ''}>{h.amount > 0 ? '+' : ''}{fmtMoney(h.amount, p.currency)}</td><td>{fmtMoney(h.balance_after, p.currency)}</td></tr>)}</tbody>
               </table></div>
             </Card>
@@ -184,19 +187,37 @@ function BuyModal({ tier, subject = 'english', price, balance, currency, onClose
   const [months, setMonths] = useState(1);
   const [busy, setBusy] = useState(false);
   const [key] = useState(() => Math.random().toString(36).slice(2) + Date.now().toString(36));
-  const total = (price ?? tier.price) * months;
+  const [code, setCode] = useState('');
+  const [promo, setPromo] = useState(null); // { code, pct, price, saved } for the chosen months
+  const [promoErr, setPromoErr] = useState('');
+  const base = (price ?? tier.price) * months;
+  const total = promo ? promo.price : base;
   const what = subject === 'both' ? `${tier.name} · English + Math` : subject === 'math' ? `${tier.name} · Math` : tier.name;
+  const check = async (c = code, m = months) => {
+    if (!c.trim()) { setPromo(null); setPromoErr(''); return; }
+    try { setPromo(await api.post('/promo/check', { code: c.trim(), plan: tier.id, months: m, subject })); setPromoErr(''); }
+    catch (e) { setPromo(null); setPromoErr(e.message); }
+  };
+  useEffect(() => { if (promo) check(promo.code, months); }, [months]); // eslint-disable-line react-hooks/exhaustive-deps
   const go = async () => {
     setBusy(true);
-    try { const r = await api.post('/plans/buy', { plan: tier.id, months, subject, key: `${key}-${subject}-${months}` }); toast(`${what} is active until ${fmtDate(r.until || r.math_until)}`); onDone(); }
-    catch (e) { toast(e.message, 'bad'); } finally { setBusy(false); }
+    try {
+      const r = await api.post('/plans/buy', { plan: tier.id, months, subject, key: `${key}-${subject}-${months}-${promo?.code || ''}`, promo: promo?.code || '' });
+      toast(`${what} is active until ${fmtDate(r.until || r.math_until)}${r.promo ? ` · you saved ${fmtMoney(r.promo.saved, currency)}` : ''}`); onDone();
+    } catch (e) { toast(e.message, 'bad'); } finally { setBusy(false); }
   };
   return (
     <Modal title={`${what} from your wallet`} onClose={onClose}
       footer={<><button className="btn ghost" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy || total > balance} onClick={go}>Pay {fmtMoney(total, currency)}</button></>}>
       <Segmented value={months} onChange={setMonths} options={[1, 3, 6].map((m) => ({ value: m, label: `${m} month${m > 1 ? 's' : ''}` }))} />
+      <form className="promo-row" onSubmit={(e) => { e.preventDefault(); check(); }}>
+        <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="Promo code" aria-label="Promo code" maxLength={24} autoCapitalize="characters" />
+        <button type="submit" className="btn soft">Apply</button>
+      </form>
+      {promoErr && <p className="bad-text">{promoErr}</p>}
+      {promo && <p className="promo-ok"><IconCheck width={16} height={16} /> {promo.code}: -{promo.pct}% · <s className="muted">{fmtMoney(base, currency)}</s> <b>{fmtMoney(promo.price, currency)}</b></p>}
       <p className="muted">Wallet: {fmtMoney(balance, currency)} → after payment {fmtMoney(Math.max(0, balance - total), currency)}.</p>
-      {total > balance && <p className="bad-text">Not enough in the wallet for {months} months.</p>}
+      {total > balance && <p className="bad-text">Not enough in the wallet: top it up by {fmtMoney(total - balance, currency)}.</p>}
       {subject !== 'math' && user.sub_active && user.access?.tier?.id !== tier.id && <p className="warn-text">Your English plan ({user.access?.tier?.name}, until {fmtDate(user.sub_until)}) is replaced by {tier.name} from today.</p>}
       {subject !== 'english' && user.access?.math?.sub_active && user.access.math.tier.id !== tier.id && <p className="warn-text">Your Math plan ({user.access.math.tier.name}, until {fmtDate(user.access.math.sub_until)}) is replaced by {tier.name} from today.</p>}
     </Modal>

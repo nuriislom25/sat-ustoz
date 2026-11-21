@@ -3,6 +3,7 @@ import PracticeTabs from '../../components/PracticeTabs.jsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../../api.js';
+import { ShareScore, firstName, today } from '../../components/Growth.jsx';
 import { useAuth, useToast } from '../../context.jsx';
 import { Confetti, Modal, Spinner } from '../../components/ui.jsx';
 import { IconArrow, IconBolt, IconBook, IconCalc, IconCheck, IconClock, IconDoc, IconLayers, IconLock, IconMath, IconRuler, IconTarget, Logo } from '../../components/icons.jsx';
@@ -446,6 +447,8 @@ function Result({ r }) {
           <div className="row wrap" style={{ marginTop: 18 }}>
             <Link className="btn primary lg" to="/practice">New test <IconArrow /></Link>
             {!user && <button className="btn on-dark lg" onClick={save}>Save my result (free)</button>}
+            <ShareScore className="btn on-dark lg" card={{ score: r.estimate, low: r.sat?.low, high: r.sat?.high, label: `My SAT ${name} practice score`, correct: r.score, total: r.total, name: firstName(user?.name), date: today(),
+              skills: [...r.skills].sort((a, b) => b.n - a.n).slice(0, 3).map((x) => ({ name: x.skill, pct: Math.round((x.ok / x.n) * 100) })) }} />
           </div>
         </div>
         <div className="pt-score"><b>{r.estimate}</b><span>{math ? 'Math' : 'R&W'} estimate</span><em>{r.sat ? `${r.sat.low}–${r.sat.high}` : '200 ····· 800'}</em></div>

@@ -36,7 +36,9 @@ const toScale = (t) => {
   return 800;
 };
 const round10 = (x) => Math.max(200, Math.min(800, Math.round(x / 10) * 10));
-const p3 = (t, { a, b }) => GUESS + (1 - GUESS) / (1 + Math.exp(-a * (t - b)));
+// a typed (student-produced) Math answer cannot be guessed from four choices: no guessing floor for it
+const p3 = (t, { a, b }, c = GUESS) => c + (1 - c) / (1 + Math.exp(-a * (t - b)));
+const guessOf = (it) => (it.kind === 'spr' ? 0.02 : GUESS);
 const lv = (d) => ITEM[String(d || '').toLowerCase()] || ITEM.medium;
 
 /** θ estimate (EAP) and its standard error from a list of { correct, difficulty }. */
@@ -44,7 +46,7 @@ export function ability(items) {
   let sw = 0, st = 0, st2 = 0;
   for (let t = -4; t <= 4.0001; t += 0.05) {
     let ll = -0.5 * t * t;
-    for (const it of items) { const p = p3(t, lv(it.difficulty)); ll += Math.log(it.correct ? p : 1 - p); }
+    for (const it of items) { const p = Math.min(0.999, Math.max(0.001, p3(t, lv(it.difficulty), guessOf(it)))); ll += Math.log(it.correct ? p : 1 - p); }
     const w = Math.exp(ll); sw += w; st += w * t; st2 += w * t * t;
   }
   const theta = st / sw;
@@ -53,7 +55,7 @@ export function ability(items) {
 
 /**
  * Score a set of answers.
- * items: [{ correct: boolean, difficulty?: 'easy'|'medium'|'hard', module?: 1|2 }]
+ * items: [{ correct: boolean, difficulty?: 'easy'|'medium'|'hard', kind?: 'mcq'|'spr', module?: 1|2 }]
  * Returns { score, low, high, raw, total, theta, route } where route is 'hard', 'easy' or null (one module only).
  */
 export function satScore(items) {

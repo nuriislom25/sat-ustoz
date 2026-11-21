@@ -25,8 +25,15 @@ else, and do not access, change or delete other people's data while testing.
   “Sign out everywhere” / a password change revokes all of them (`token_version`).
 - **Passwords** are hashed with bcrypt; weak and published default passwords are refused. Default demo passwords
   only work on `localhost`.
-- **Limits**: per-IP request limits, per-account sign-in lockout; the client IP is taken from the proxy's own entry,
-  so a forged `X-Forwarded-For` cannot reset them.
+- **Limits**: per-IP request limits; sign-in lockout per account (teacher accounts: 5 tries / 15 min, 50 a day),
+  per network (20 wrong passwords / 15 min across all accounts) and for the Telegram `/admin` code (5 / hour, the code
+  changes after each use). The client IP is taken from the proxy's own entry, so a forged `X-Forwarded-For` cannot
+  reset them. Teacher sessions last 14 days, students' 30.
+- **Staff admins** are checked by section on the normalised path (`/api/FINANCE` and `/api/%66inance` are the same
+  as `/api/finance`). Payment card, prices, free mode, promo codes, prizes and opening paid lessons are for the
+  Finance section or the owner only.
+- **Money**: every balance change goes through `moveBalance` with a unique ledger `ref`; promo codes, referral
+  bonuses and refunds are written in the same transaction as the purchase.
 - **Headers**: strict Content-Security-Policy, HSTS, `X-Frame-Options: DENY`, `nosniff`, no `Access-Control-Allow-Origin: *`.
 - **SQL** always uses parameters (`?` placeholders); never build SQL from request values.
 - No source maps are published; production error messages are generic.

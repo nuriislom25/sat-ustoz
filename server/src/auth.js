@@ -25,7 +25,7 @@ export async function initSecret() {
 
 export const getSecret = () => SECRET;
 
-export const signToken = (user) => jwt.sign({ id: user.id, role: user.role, v: Number(user.token_version || 0) }, SECRET, { expiresIn: '30d', algorithm: 'HS256' });
+export const signToken = (user) => jwt.sign({ id: user.id, role: user.role, v: Number(user.token_version || 0) }, SECRET, { expiresIn: user.role === 'master' ? '14d' : '30d', algorithm: 'HS256' });
 
 export const subActive = (u) => !!(u?.sub_until && new Date(u.sub_until) > new Date());
 
