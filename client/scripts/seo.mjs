@@ -21,7 +21,7 @@ const ORG = {
   description: 'Online SAT Reading & Writing prep platform from Uzbekistan: roadmap from 200 to 800, video lessons, an SAT-style Question Bank, timed Bluebook-style practice tests and vocabulary training with a real teacher.',
   areaServed: [{ '@type': 'Country', name: 'Uzbekistan' }, 'Central Asia', 'Worldwide'], availableLanguage: ['English', 'Uzbek'],
   knowsAbout: ['Digital SAT', 'SAT Reading and Writing', 'Standard English Conventions', 'SAT vocabulary', 'Test preparation'],
-  founder: { '@type': 'Person', name: 'Axror Alimjon', jobTitle: 'SAT teacher, founder of SAT Ustoz', sameAs: ['https://www.instagram.com/ahroralimjon', 'https://t.me/ahroralimjon_life'] },
+  founder: { '@type': 'Person', name: 'Ahror Alimjon', jobTitle: 'SAT teacher, founder of SAT Ustoz', sameAs: ['https://www.instagram.com/ahroralimjon', 'https://t.me/ahroralimjon_life'] },
   sameAs: ['https://www.instagram.com/ahroralimjon', 'https://t.me/ahroralimjon_life'],
 };
 const FAQ = [
@@ -73,11 +73,11 @@ const PAGES = [
     ld: () => [{ '@type': 'Quiz', name: 'Free SAT Reading & Writing practice test', about: 'Digital SAT Reading and Writing', educationalLevel: 'High school', numberOfQuestions: 27, timeRequired: 'PT32M', isAccessibleForFree: true, provider: { '@id': `${SITE}/#org` } }, crumbs([['Practice test', '/practice']])],
   },
   {
-    path: '/about', title: 'About SAT Ustoz — SAT Teacher Axror Alimjon | Online SAT Prep in Uzbekistan',
-    desc: 'SAT Ustoz is an online SAT Reading & Writing platform founded by SAT teacher Axror Alimjon so every student in Uzbekistan can prepare with a real teacher’s method.',
+    path: '/about', title: 'About SAT Ustoz — SAT Teacher Ahror Alimjon | Online SAT Prep in Uzbekistan',
+    desc: 'SAT Ustoz is an online SAT Reading & Writing platform founded by SAT teacher Ahror Alimjon so every student in Uzbekistan can prepare with a real teacher’s method.',
     h1: 'About SAT Ustoz',
     body: `<p>SAT Ustoz is an online platform for SAT Reading and Writing. Students from Uzbekistan learn step by step — from 200 to 800 — with video lessons, clear notes, practice with instant feedback and real exam-style tests.</p>
-<h2>Founder</h2><p><strong>Axror Alimjon</strong>, SAT teacher and founder, created SAT Ustoz so that every student in Uzbekistan can prepare for the SAT with a real teacher’s method, not just random tests. Follow on <a href="https://www.instagram.com/ahroralimjon">Instagram</a> and <a href="https://t.me/ahroralimjon_life">Telegram</a>.</p>
+<h2>Founder</h2><p><strong>Ahror Alimjon</strong>, SAT teacher and founder, created SAT Ustoz so that every student in Uzbekistan can prepare for the SAT with a real teacher’s method, not just random tests. Follow on <a href="https://www.instagram.com/ahroralimjon">Instagram</a> and <a href="https://t.me/ahroralimjon_life">Telegram</a>.</p>
 <h2>What makes it different</h2><ul><li>A clear roadmap: lessons open one by one.</li><li>Original SAT-style questions with explanations and Ustoz tips.</li><li>Progress you can see: score estimates, skill breakdowns and a teacher watching every result.</li></ul>`,
     ld: () => [{ '@type': 'AboutPage', name: 'About SAT Ustoz', about: { '@id': `${SITE}/#org` } }, ORG, crumbs([['About', '/about']])],
   },
@@ -117,7 +117,7 @@ for (const lp of LOCAL_PAGES) {
   PAGES.push({
     path: lp.path, lang: lp.lang, alt: lp.alt, title: lp.title, desc: lp.desc, h1: lp.h1, body: localBody(lp), ownFaq: true,
     ld: () => [
-      ...(lp.article ? [{ '@type': 'Article', headline: lp.h1, description: lp.desc, inLanguage: lp.lang, url: SITE + lp.path, author: { '@type': 'Person', name: 'Axror Alimjon' }, publisher: { '@id': `${SITE}/#org` }, dateModified: TODAY, image: `${SITE}/og.png` }]
+      ...(lp.article ? [{ '@type': 'Article', headline: lp.h1, description: lp.desc, inLanguage: lp.lang, url: SITE + lp.path, author: { '@type': 'Person', name: 'Ahror Alimjon' }, publisher: { '@id': `${SITE}/#org` }, dateModified: TODAY, image: `${SITE}/og.png` }]
         : [ORG, { '@type': 'WebPage', name: lp.title, description: lp.desc, inLanguage: lp.lang, url: SITE + lp.path, isPartOf: { '@id': `${SITE}/#site` }, about: { '@id': `${SITE}/#org` } },
           { '@type': 'Course', name: lp.h1, description: lp.desc, inLanguage: lp.lang, provider: { '@id': `${SITE}/#org` }, hasCourseInstance: { '@type': 'CourseInstance', courseMode: 'online', courseWorkload: 'PT1H' }, offers: { '@type': 'Offer', category: 'Subscription', availability: 'https://schema.org/InStock', url: `${SITE}/signup` } }]),
       ...(lp.faq ? [{ '@type': 'FAQPage', inLanguage: lp.lang, mainEntity: lp.faq.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) }] : []),
@@ -128,7 +128,7 @@ for (const lp of LOCAL_PAGES) {
 
 function faqLd() { return { '@type': 'FAQPage', mainEntity: FAQ.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) }; }
 function crumbs(list) { return { '@type': 'BreadcrumbList', itemListElement: [['Home', '/'], ...list].map(([name, p], i) => ({ '@type': 'ListItem', position: i + 1, name, item: SITE + p })) }; }
-function article(headline, p) { return { '@type': 'Article', headline, url: SITE + p, author: { '@type': 'Person', name: 'Axror Alimjon' }, publisher: { '@id': `${SITE}/#org` }, dateModified: TODAY, image: `${SITE}/og.png` }; }
+function article(headline, p) { return { '@type': 'Article', headline, url: SITE + p, author: { '@type': 'Person', name: 'Ahror Alimjon' }, publisher: { '@id': `${SITE}/#org` }, dateModified: TODAY, image: `${SITE}/og.png` }; }
 
 // speed: the page's own code is fetched together with the main bundle (no waterfall), and the two
 // brand fonts start downloading before the CSS is parsed
@@ -244,7 +244,7 @@ SAT Ustoz (also written SATUstoz, Ustoz SAT; Uzbek: "SAT tayyorlov onlayn platfo
 - Bluebook-style player: highlighter, answer elimination, Mark for Review, navigator, timer.
 - Vocabulary: 980+ SAT words in 75 units with spaced-repetition flashcards and unit tests; Word Arena live vocabulary game (classes, teams, duels, bots).
 - Teacher analytics: time on the platform, accuracy by skill, progress of every student.
-- Founder and teacher: Axror Alimjon (Instagram: ahroralimjon, Telegram: ahroralimjon_life).
+- Founder and teacher: Ahror Alimjon (Instagram: ahroralimjon, Telegram: ahroralimjon_life).
 - Languages: English platform, Uzbek tips and support.
 
 ## Pages in Uzbek and Russian

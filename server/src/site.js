@@ -118,7 +118,7 @@ export const DEFAULT_BLOCKS = {
       { emoji: '🎯', title: 'Original SAT-style questions', text: 'Written for SAT Ustoz, every question has an explanation and an Ustoz tip.' },
       { emoji: '📊', title: 'Progress you can see', text: 'Score estimates, skill breakdowns and the teacher watching every result.' },
     ],
-    founder_name: 'Axror Alimjon',
+    founder_name: 'Ahror Alimjon',
     founder_role: 'Founder · SAT teacher',
     founder_bio: 'I created SAT Ustoz so that every student in Uzbekistan can prepare for the SAT with a real teacher’s method — not just random tests. Follow me on Instagram and Telegram for SAT tips, results of my students and news about new lessons.',
     photo_url: '/founder.jpg',
@@ -149,6 +149,9 @@ async function setBlock(key, data) {
 
 /** First start: example pages so the menu is not empty (only when there are none). */
 export async function seedSite() {
+  // the teacher's name is spelled Ahror (an older default said "Axror"): fix it in saved blocks and pages once
+  await db.run("UPDATE site_blocks SET data = replace(data, 'Axror', 'Ahror') WHERE data LIKE '%Axror%'");
+  await db.run("UPDATE site_pages SET body = replace(body, 'Axror', 'Ahror'), title = replace(title, 'Axror', 'Ahror'), summary = replace(summary, 'Axror', 'Ahror') WHERE body LIKE '%Axror%' OR title LIKE '%Axror%' OR summary LIKE '%Axror%'");
   // the public offer page always exists (the teacher can edit it, it is never overwritten)
   await db.run('INSERT INTO site_pages (section, slug, title, summary, body, emoji, position) VALUES (?,?,?,?,?,?,?) ON CONFLICT (slug) DO NOTHING', [OFERTA.section, OFERTA.slug, OFERTA.title, OFERTA.summary, OFERTA.body, OFERTA.emoji, 999]);
   const n = await db.one('SELECT COUNT(*) AS n FROM site_pages WHERE slug <> ?', ['oferta']);

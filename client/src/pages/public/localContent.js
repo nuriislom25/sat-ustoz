@@ -31,7 +31,7 @@ export const LOCAL_PAGES = [
 <li><b>Har kuni mashq qiling.</b> Yangi savollar, xatolar daftari va mock testlar bilan taxminiy ballingiz o‘sib borishini kuzating.</li>
 </ol>` },
       { h2: 'Kimlar uchun', html: '<p>SAT‘ga Toshkentda, viloyatlarda yoki chet elda onlayn tayyorlanayotgan o‘quvchilar uchun: endi boshlayotganlardan 700+ ball olmoqchi bo‘lganlargacha. Platforma ingliz tilida, maslahatlar va qo‘llab-quvvatlash o‘zbek tilida.</p>' },
-      { h2: 'Ustoz haqida', html: '<p>Platformani SAT o‘qituvchisi <b>Axror Alimjon</b> yaratgan: maqsad — O‘zbekistondagi har bir o‘quvchi tasodifiy testlar bilan emas, haqiqiy ustoz metodikasi bilan tayyorlansin. <a href="/about">Batafsil</a></p>' },
+      { h2: 'Ustoz haqida', html: '<p>Platformani SAT o‘qituvchisi <b>Ahror Alimjon</b> yaratgan: maqsad — O‘zbekistondagi har bir o‘quvchi tasodifiy testlar bilan emas, haqiqiy ustoz metodikasi bilan tayyorlansin. <a href="/about">Batafsil</a></p>' },
       { h2: 'Foydali maqolalar', html: `<ul>
 <li><a href="/uz/sat-nima">SAT nima? Digital SAT haqida to‘liq ma‘lumot</a></li>
 <li><a href="/uz/sat-reading-writing-tayyorgarlik">SAT Reading and Writing bo‘limiga qanday tayyorlanish kerak</a></li>
