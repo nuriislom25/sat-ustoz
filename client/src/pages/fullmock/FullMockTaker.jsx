@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { api, getToken } from '../../api.js';
+import { api, authHeaders } from '../../api.js';
 import { useToast } from '../../context.jsx';
 import { Confirm, ErrorBox, Spinner } from '../../components/ui.jsx';
 import { BBFooter, BBNavigator, BBOptions, BBQuestionBar, BBReview, BBShell, BBSplit, Highlightable, useElimination, useQuestionTimer } from '../../components/Bluebook.jsx';
@@ -168,7 +168,7 @@ function MockPdf({ id }) {
   const [err, setErr] = useState('');
   useEffect(() => {
     let u;
-    fetch(`/api/full-mocks/${id}/pdf`, { headers: { Authorization: `Bearer ${getToken()}` } })
+    fetch(`/api/full-mocks/${id}/pdf`, { headers: authHeaders() })
       .then((r) => (r.ok ? r.blob() : Promise.reject(new Error('Could not open the PDF'))))
       .then((b) => { u = URL.createObjectURL(b); setUrl(u); }).catch((e) => setErr(e.message));
     return () => u && URL.revokeObjectURL(u);

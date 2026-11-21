@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api } from '../../api.js';
+import { api, authHeaders } from '../../api.js';
 import { useToast } from '../../context.jsx';
 import { Card, Empty, ErrorBox, PageHeader, Segmented, Spinner } from '../../components/ui.jsx';
 import { IconSend } from '../../components/icons.jsx';
@@ -54,7 +54,7 @@ function Thread({ id, onChange }) {
   useEffect(() => { setT(null); setText(''); load(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
   const photo = async (mid) => {
     try {
-      const r = await fetch(`/api/support/file/${mid}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+      const r = await fetch(`/api/support/file/${mid}`, { headers: authHeaders() });
       if (!r.ok) throw new Error('Could not load the file');
       const url = URL.createObjectURL(await r.blob());
       setImg((m) => ({ ...m, [mid]: url }));

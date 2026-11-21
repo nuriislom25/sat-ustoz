@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, getToken } from '../api.js';
+import { api, authHeaders } from '../api.js';
 import { useToast } from '../context.jsx';
 import { IconDoc, IconDownload, IconLock, IconTrash, IconUpload } from './icons.jsx';
 
@@ -8,7 +8,7 @@ const mb = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max
 const meta = (h) => ['PDF', h.pages && `${h.pages} pages`, h.size && mb(h.size)].filter(Boolean).join(' · ');
 
 async function fetchPdf(stepId) {
-  const res = await fetch(`/api/roadmap/steps/${stepId}/handout`, { headers: { Authorization: `Bearer ${getToken()}` } });
+  const res = await fetch(`/api/roadmap/steps/${stepId}/handout`, { headers: authHeaders() });
   if (!res.ok) {
     const j = await res.json().catch(() => ({}));
     throw Object.assign(new Error(j.error || 'Could not open the rules sheet'), { status: res.status });
@@ -16,7 +16,7 @@ async function fetchPdf(stepId) {
   const parts = Number(res.headers.get('X-Parts') || 1);
   const blobs = [await res.blob()];
   for (let p = 1; p < parts; p++) {
-    const r = await fetch(`/api/roadmap/steps/${stepId}/handout?part=${p}`, { headers: { Authorization: `Bearer ${getToken()}` } });
+    const r = await fetch(`/api/roadmap/steps/${stepId}/handout?part=${p}`, { headers: authHeaders() });
     if (!r.ok) throw new Error('Could not open the rules sheet');
     blobs.push(await r.blob());
   }
@@ -76,7 +76,7 @@ export function HandoutEditor({ stepId, h, onChange }) {
       for (let i = 0; i < n; i++) {
         setPct(Math.round((i / n) * 100));
         const r = await fetch(`/api/roadmap/steps/${stepId}/handout/chunk?upload=${id}&i=${i}&n=${n}&name=${encodeURIComponent(file.name)}`,
-          { method: 'POST', headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/octet-stream' }, body: file.slice(i * CH, (i + 1) * CH) });
+          { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/octet-stream' }), body: file.slice(i * CH, (i + 1) * CH) });
         const d = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(d.error || `Upload failed (${r.status})`);
         s = d;

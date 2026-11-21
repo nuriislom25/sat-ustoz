@@ -22,7 +22,7 @@ import { starter, sprCorrect } from './math.js';
  * browser sends: changing that value used to show a new part of the bank each time, so the whole bank with its answers
  * could be copied from the free test.
  */
-const seedOf = (req) => crypto.createHash('sha256').update(`${ipKey(req)}:${req.headers.authorization ? 'u' : 'g'}:${Math.floor(Date.now() / (7 * 86400e3))}`).digest('hex').slice(0, 24);
+const seedOf = (req) => crypto.createHash('sha256').update(`${ipKey(req)}:${req.headers.authorization || /su_sess=/.test(req.headers.cookie || '') ? 'u' : 'g'}:${Math.floor(Date.now() / (7 * 86400e3))}`).digest('hex').slice(0, 24);
 const parse = (s, d) => { try { return s ? JSON.parse(s) : d; } catch { return d; } };
 const LEVELS = ['easy', 'medium', 'hard'];
 const SIZES = [5, 10, 15, 20, 27];

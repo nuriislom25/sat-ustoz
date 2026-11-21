@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api } from '../../api.js';
+import { api, authHeaders } from '../../api.js';
 import { useToast } from '../../context.jsx';
 import { Card, Confirm, Field, Gate, PageHeader, useAsync } from '../../components/ui.jsx';
 import { IconCheck } from '../../components/icons.jsx';
@@ -137,6 +137,13 @@ function Form({ init }) {
         </details>
       </Card>
       <Card className="stack">
+        <h2>Trustpilot reviews</h2>
+        <small className="muted">Shows your Trustpilot rating on the home page and in the footer. Visitors who accept cookies see the live widget, the others a link to your review page.</small>
+        <Field label="Your Trustpilot page" hint="after you claim the business on business.trustpilot.com"><input value={f.trustpilot_url || ''} onChange={set('trustpilot_url')} placeholder="https://www.trustpilot.com/review/ustozsat.uz" /></Field>
+        <Field label="Business Unit ID" hint="Trustpilot Business → Integrations → TrustBox (data-businessunit-id)"><input value={f.trustpilot_bu || ''} onChange={set('trustpilot_bu')} placeholder="5f2b…" /></Field>
+        <Field label="TrustBox template ID" hint="optional; empty = Micro Combo"><input value={f.trustpilot_template || ''} onChange={set('trustpilot_template')} placeholder="5419b6ffb0d04a076446a9af" /></Field>
+      </Card>
+      <Card className="stack">
         <h2>Integrations</h2>
         {!init.google_env && (
           <Field label="Google sign-in — Client ID" hint="public value, not a secret">
@@ -269,7 +276,7 @@ function RequestsCard() {
   useEffect(() => () => Object.values(img).forEach((u) => URL.revokeObjectURL(u)), []); // eslint-disable-line react-hooks/exhaustive-deps
   const show = async (id) => {
     try {
-      const r = await fetch(`/api/telegram/requests/${id}/file`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+      const r = await fetch(`/api/telegram/requests/${id}/file`, { headers: authHeaders() });
       if (!r.ok) throw new Error('Could not load the receipt');
       const url = URL.createObjectURL(await r.blob());
       setImg((m) => ({ ...m, [id]: url }));

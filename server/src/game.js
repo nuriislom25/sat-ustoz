@@ -12,6 +12,7 @@
  */
 import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
+import { tokenPayload } from './auth.js';
 import { db } from './db.js';
 import { getSecret } from './auth.js';
 import { gameWords } from './vocab.js';
@@ -187,11 +188,7 @@ async function newCode() {
   }
   throw new Error('Could not create a room code');
 }
-const tokenUser = (req) => {
-  const h = req.headers.authorization || '';
-  if (!h.startsWith('Bearer ')) return null;
-  try { return jwt.verify(h.slice(7), getSecret()); } catch { return null; }
-};
+const tokenUser = (req) => tokenPayload(req);
 const cleanName = (s) => String(s || '').replace(/[<>]/g, '').trim().slice(0, 18);
 
 /** Games never run out of questions: when someone gets close to the end, 30 more are added from the room's words. */

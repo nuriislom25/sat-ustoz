@@ -10,7 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { db, migrate, getSettings, setSettings, DB_KIND, dbHost } from './db.js';
 import { notifyAdmins, webhookInfo } from './tgbot.js';
-import { initSecret, signToken, publicUser, requireAuth, requireMaster, requireStudent, subActive, verifyGoogleCredential, userFrom } from './auth.js';
+import { initSecret, signToken, publicUser, requireAuth, requireMaster, requireStudent, subActive, verifyGoogleCredential, userFrom, startSession, endSession } from './auth.js';
 import { parseUpload, buildTemplate, DEFAULT_PROMPT } from './parse.js';
 import { userAnalytics, estimateScore } from './analytics.js';
 import { SAT_DATES, isSatDate } from './satDates.js';
@@ -318,7 +318,8 @@ app.get('/api/config', h(async (req, res) => {
     google: !!(process.env.GOOGLE_CLIENT_ID || s.google_client_id),
     telegram_bot: s.telegram_bot,
     prices: { month: +s.price_month || 0, quarter: +s.price_quarter || 0, currency: s.currency },
-    tiers: readTiers(s), free: tierOf({ role: 'student' }, s), fm_extra_price: Number(s.fm_extra_price) || 0, quiz_extra_price: Number(s.quiz_extra_price) || 0,
+    tiers: readTiers(s), free: tierOf({ role: 'student' }, s), fm_extra_price: Number(s.fm_extra_price) || 0, bundle_discount: bundlePct(s), quiz_extra_price: Number(s.quiz_extra_price) || 0,
+    trustpilot: { url: s.trustpilot_url || '', bu: s.trustpilot_bu || '', template: s.trustpilot_template || '' },
   });
 }));
 
@@ -362,7 +363,7 @@ app.post('/api/auth/login', h(async (req, res) => {
     if (!seen) notifyAdmins(`🔐 ${u.admin_perms != null ? `Admin «${u.name}»` : 'Teacher account'} signed in from a new network. IP: ${clientIp(req)}. If this was not you, change the password and press “Sign out everywhere”.`);
   }
   await db.run('UPDATE users SET last_login_at = now() WHERE id = ?', [u.id]);
-  res.json({ token: signToken(u) });
+  res.json({ token: startSession(res, u) });
 }));
 
 app.post('/api/auth/register', h(async (req, res) => {
@@ -383,7 +384,7 @@ app.post('/api/auth/register', h(async (req, res) => {
     "INSERT INTO users (name, login, email, password_hash, role, provider, last_login_at, terms_accepted_at) VALUES (?,?,?,?,?,?, now(), now()) RETURNING id",
     [name, email, email, bcrypt.hashSync(password, 12), role, owner ? 'teacher' : 'email']
   );
-  res.json({ token: signToken({ id: r.id, role }) });
+  res.json({ token: startSession(res, { id: r.id, role }) });
 }));
 
 app.post('/api/auth/google', h(async (req, res) => {
@@ -405,7 +406,7 @@ app.post('/api/auth/google', h(async (req, res) => {
     );
     u = { id: r.id, role: 'student' };
   }
-  res.json({ token: signToken(u) });
+  res.json({ token: startSession(res, u) });
 }));
 
 // public website: home content, guide pages and free practice tests (no sign-in)
@@ -422,7 +423,7 @@ app.get('/api/avatars/:id', h(async (req, res) => {
   res.send(Buffer.from(a.data));
 }));
 
-const PUBLIC = new Set(['/auth/login', '/auth/register', '/auth/google', '/auth/telegram/start', '/auth/telegram/poll', '/auth/telegram/agree', '/visit', '/config', '/template.xlsx', '/cron/drip']);
+const PUBLIC = new Set(['/auth/login', '/auth/logout', '/auth/register', '/auth/google', '/auth/telegram/start', '/auth/telegram/poll', '/auth/telegram/agree', '/visit', '/config', '/template.xlsx', '/cron/drip']);
 app.use('/api', (req, res, next) => (PUBLIC.has(req.path) && req.path !== '/template.xlsx' ? next() : requireAuth(req, res, next)));
 // admin accounts: only their sections, and what they change goes to the activity log (admins.js)
 app.use('/api', adminGuard());
@@ -585,12 +586,16 @@ app.put('/api/me/password', h(async (req, res) => {
   // a new password ends every other session
   const u = await db.one('UPDATE users SET password_hash = ?, token_version = token_version + 1 WHERE id = ? RETURNING id, role, token_version', [bcrypt.hashSync(String(next), 12), req.user.id]);
   await audit(req, 'password_changed', `user ${req.user.id}`);
-  res.json({ ok: true, token: signToken(u) });
+  res.json({ ok: true, token: startSession(res, u) });
 }));
+// sign out on this device: the session cookie is removed (public path: works even when the session already ended)
+app.post('/api/auth/logout', (req, res) => { endSession(res); res.json({ ok: true }); });
+// an app tab from before cookie sessions moves its saved token into the cookie once
+app.post('/api/me/session-cookie', h(async (req, res) => { startSession(res, req.user); res.json({ ok: true }); }));
 app.post('/api/me/logout-all', h(async (req, res) => {
   const u = await db.one('UPDATE users SET token_version = token_version + 1 WHERE id = ? RETURNING id, role, token_version', [req.user.id]);
   await audit(req, 'logout_all', `user ${req.user.id}`);
-  res.json({ token: signToken(u) });
+  res.json({ token: startSession(res, u) });
 }));
 app.get('/api/audit', requireMaster, h(async (req, res) => {
   res.json(await db.all('SELECT id, actor, action, target, detail, ip, at FROM audit_log ORDER BY id DESC LIMIT 100'));
@@ -685,6 +690,10 @@ app.put('/api/settings', requireMaster, h(async (req, res) => {
   if ('free_q_day' in b) patch.free_q_day = String(Math.max(0, Math.min(999, Math.round(+b.free_q_day || 0))));
   if ('math_free_day' in b) patch.math_free_day = String(Math.max(0, Math.min(999, Math.round(+b.math_free_day || 0))));
   if ('math_free_lessons' in b) patch.math_free_lessons = String(Math.max(0, Math.min(50, Math.round(+b.math_free_lessons || 0))));
+  // Trustpilot: the public review page, and the business unit id / widget template from the Trustpilot business account
+  if ('trustpilot_url' in b) { const u = String(b.trustpilot_url || '').trim(); if (u && !/^https:\/\/([a-z]{2,3}\.)?trustpilot\.com\/review\/[\w.-]+\/?$/i.test(u)) return bad(res, 'Trustpilot link looks like https://www.trustpilot.com/review/ustozsat.uz'); patch.trustpilot_url = u.slice(0, 200); }
+  if ('trustpilot_bu' in b) patch.trustpilot_bu = String(b.trustpilot_bu || '').replace(/[^a-f0-9]/gi, '').slice(0, 40);
+  if ('trustpilot_template' in b) patch.trustpilot_template = String(b.trustpilot_template || '').replace(/[^a-f0-9]/gi, '').slice(0, 40);
   for (const k of ['ref_bonus', 'ref_friend_bonus']) if (k in b) patch[k] = String(Math.max(0, Math.min(1_000_000, Number(digits(b[k])) || 0)));
   if ('bundle_discount' in b) patch.bundle_discount = String(Math.max(0, Math.min(90, Math.round(+b.bundle_discount || 0))));
   if ('bunny_library_id' in b) patch.bunny_library_id = String(b.bunny_library_id || '').replace(/\D/g, '').slice(0, 12);

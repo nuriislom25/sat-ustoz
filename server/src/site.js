@@ -1,3 +1,4 @@
+import { tokenPayload } from './auth.js';
 import { satScore } from './scoring.js';
 import { OFERTA } from './oferta.js';
 /**
@@ -171,11 +172,7 @@ export async function poolIds(seed, cfg) {
 }
 
 function optionalUser(SECRET) {
-  return (req) => {
-    const h = req.headers.authorization || '';
-    if (!h.startsWith('Bearer ')) return null;
-    try { return jwt.verify(h.slice(7), SECRET(), { algorithms: ['HS256'] }); } catch { return null; }
-  };
+  return (req) => tokenPayload(req);
 }
 
 

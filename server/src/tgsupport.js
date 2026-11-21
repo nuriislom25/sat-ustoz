@@ -4,6 +4,7 @@
  * and in the teacher panel (Support). The answer goes back to the student through the bot.
  * Anyone can write — a website account is not required.
  */
+import { tokenPayload } from './auth.js';
 import { tierOf } from './tiers.js';
 import { getSettings } from './db.js';
 import crypto from 'node:crypto';
@@ -193,10 +194,8 @@ export function registerSupportAdmin(app, { h, bad, requireMaster }, ctx) {
 // ---------------------------------------------------------------------------
 const WEB_LIMIT = 20; // messages per conversation per hour
 function webIdentity(req) {
-  const h = req.headers.authorization || '';
-  if (h.startsWith('Bearer ')) {
-    try { const p = jwt.verify(h.slice(7), getSecret()); return { chat: `web:u:${p.id}`, userId: p.id }; } catch { /* fall through to guest */ }
-  }
+  const p = tokenPayload(req);
+  if (p) return { chat: `web:u:${p.id}`, userId: p.id };
   const g = String(req.query.guest || req.body?.guest || '').replace(/[^a-f0-9]/g, '').slice(0, 48);
   return g.length >= 32 ? { chat: `web:g:${g}`, userId: null, guest: g } : { chat: null, userId: null };
 }

@@ -13,7 +13,7 @@
 import { readTiers, moveBalance, walletNo, buyPlan, MIN_TOPUP, MAX_TOPUP, tooManyFails, noteFail, clearFails } from './tiers.js';
 import crypto from 'node:crypto';
 import { db, getSettings } from './db.js';
-import { getSecret, subActive, signToken } from './auth.js';
+import { getSecret, subActive, signToken, startSession } from './auth.js';
 import { getBlock } from './site.js';
 import { CATS, MENU, answer, closeTicket, getState, menuKeyboard, migrateSupport, registerSupportAdmin, registerSupportWeb, setState, ticketByAdminMessage, userMessage } from './tgsupport.js';
 
@@ -576,7 +576,7 @@ export function registerBot(app, { h, bad, requireMaster, requireStudent }) {
       // the session is handed out once
       const claimed = await db.one("UPDATE tg_logins SET status = 'used' WHERE code = ? AND status = 'done' RETURNING user_id", [code]);
       const u = claimed && (await db.one('UPDATE users SET last_login_at = now() WHERE id = ? RETURNING id, role, token_version', [claimed.user_id]));
-      if (u) return res.json({ token: signToken(u) });
+      if (u) return res.json({ token: startSession(res, u) });
     }
     if (row.status === 'used') return bad(res, 'This sign-in was already used. Press "Continue with Telegram" again.', 410);
     if (new Date(row.expires_at) < new Date()) return bad(res, 'The Telegram sign-in timed out. Press "Continue with Telegram" again.', 410);

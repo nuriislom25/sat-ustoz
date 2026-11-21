@@ -100,6 +100,19 @@ for (const [who, t] of [['student', S], ['teacher', M]]) for (const p of ['/api/
 }
 ok(!leaks.length, 'no password hashes or secret keys in API responses', leaks.join(', '));
 
+// ---- 6b. session cookie: HttpOnly, and a cookie-only request that changes something needs the app's X-SU header
+const lr = await new Promise((resolve) => { const r = http.request(`${B}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' } }, (res) => { res.resume(); res.on('end', () => resolve(res.headers['set-cookie'] || [])); }); r.write(JSON.stringify({ login: 'shukurullo', password: 'student123' })); r.end(); });
+const ck = (lr.find((c) => c.startsWith('su_sess=')) || '').split(';')[0];
+ok(/HttpOnly/i.test(lr.join(';')) && /SameSite=Lax/i.test(lr.join(';')), 'session cookie is HttpOnly and SameSite');
+ok((await req('GET', '/api/me', { headers: { cookie: ck } })).status === 200, 'session cookie signs in');
+ok((await req('PUT', '/api/me', { body: { name: 'X Y' }, headers: { cookie: ck } })).status === 403, 'cookie request without X-SU is refused (CSRF)');
+// ---- 6c. staff admins can't reach a section by changing the letter case or %-encoding the path
+const MT = await login('master', 'master123');
+const adm = (await req('POST', '/api/admins', { token: MT, body: { name: 'Sec Test', login: 'sectest', perms: ['content'], password: 'Sec-test-pass-91!' } })).json;
+const AT = await login(adm?.login || 'sectest', 'Sec-test-pass-91!');
+const codes = await Promise.all(['/api/finance', '/api/FINANCE', '/api/%66inance'].map(async (p) => (await req('GET', p, { token: AT })).status));
+ok(codes.every((c) => c === 403), 'staff section check ignores case and %-encoding', codes.join(','));
+
 // ---- 7. sign-in errors do not reveal which accounts exist
 const e1 = (await req('POST', '/api/auth/login', { body: { login: 'no-such-user-xyz', password: 'Wrong-pass-1' } })).json?.error;
 const e2 = (await req('POST', '/api/auth/login', { body: { login: 'shukurullo', password: 'Wrong-pass-1' } })).json?.error;

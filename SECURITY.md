@@ -21,7 +21,8 @@ else, and do not access, change or delete other people's data while testing.
   public site/game/practice routes answer guests. Teacher routes use `requireMaster`; staff admins are further limited
   to their sections by `adminGuard` (`server/src/admins.js`). Front-end checks are only for the interface.
 - **Ownership is checked on the server** for anything fetched by ID (attempts, mocks, bookings, results).
-- **Sessions** are HS256 JWTs signed with `JWT_SECRET`; the algorithm is pinned, tokens expire after 30 days, and
+- **Sessions** are HS256 JWTs in an HttpOnly, SameSite=Lax cookie (`su_sess`, Secure in production); a request
+  signed in by the cookie that changes something must send the `X-SU: 1` header (CSRF). They are signed with `JWT_SECRET`; the algorithm is pinned, tokens expire after 30 days, and
   “Sign out everywhere” / a password change revokes all of them (`token_version`).
 - **Passwords** are hashed with bcrypt; weak and published default passwords are refused. Default demo passwords
   only work on `localhost`.

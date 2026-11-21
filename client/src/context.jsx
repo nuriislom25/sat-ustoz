@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { api, getToken, setToken } from './api.js';
+import { api, getToken, setToken, upgradeSession } from './api.js';
 
 const AuthCtx = createContext(null);
 const ThemeCtx = createContext(null);
@@ -15,7 +15,7 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if (!getToken()) return;
-    api.get('/me').then(setUser).catch(() => setToken(null)).finally(() => setLoading(false));
+    upgradeSession().then(() => api.get('/me')).then(setUser).catch((e) => { if (e?.status === 401) setToken(null); }).finally(() => setLoading(false));
   }, []);
   useEffect(() => {
     const f = () => setUser(null);

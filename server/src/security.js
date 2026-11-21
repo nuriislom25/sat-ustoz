@@ -17,13 +17,13 @@ export const corsOptions = (req, cb) => {
 /** Content Security Policy shared by the API and the static site (vercel.json has the same value). */
 export const CSP = [
   "default-src 'self'",
-  "script-src 'self' https://accounts.google.com/gsi/client",
+  "script-src 'self' https://accounts.google.com/gsi/client https://widget.trustpilot.com",
   "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
   "media-src 'self' blob: https:",
   "connect-src 'self' https://accounts.google.com/gsi/ https://video.bunnycdn.com",
-  "frame-src 'self' blob: https://www.desmos.com https://accounts.google.com https://player.mediadelivery.net https://iframe.mediadelivery.net https://www.youtube-nocookie.com https://www.youtube.com https://player.vimeo.com https://drive.google.com",
+  "frame-src 'self' blob: https://www.desmos.com https://accounts.google.com https://player.mediadelivery.net https://iframe.mediadelivery.net https://www.youtube-nocookie.com https://www.youtube.com https://player.vimeo.com https://drive.google.com https://widget.trustpilot.com",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

@@ -4,8 +4,11 @@
  */
 let first = true;
 let last = '';
+// without "Accept all" the id lives only for this tab (counted, but not remembered)
+const allowed = () => { try { return !!JSON.parse(localStorage.getItem('consent-v1') || 'null')?.analytics; } catch { return false; } };
 function visitorId() {
   try {
+    if (!allowed()) throw new Error('no consent');
     let v = localStorage.getItem('vid');
     if (!v) { v = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36)).replace(/[^\w-]/g, ''); localStorage.setItem('vid', v); }
     return v;
@@ -24,6 +27,5 @@ export function countVisit(path) {
     body.ref = document.referrer || '';
     try { body.utm = new URLSearchParams(window.location.search).get('utm_source') || ''; } catch { /* ignore */ }
   }
-  let token = ''; try { token = localStorage.getItem('token') || ''; } catch { /* ignore */ }
-  fetch('/api/visit', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) }).catch(() => {});
+  fetch('/api/visit', { method: 'POST', keepalive: true, credentials: 'same-origin', headers: { 'content-type': 'application/json', 'X-SU': '1' }, body: JSON.stringify(body) }).catch(() => {});
 }

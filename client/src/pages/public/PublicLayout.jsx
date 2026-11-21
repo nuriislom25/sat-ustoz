@@ -1,3 +1,4 @@
+import { Trustpilot, openCookieSettings } from '../../components/Consent.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { useReveal } from '../../components/reveal.js';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
@@ -86,6 +87,7 @@ export default function PublicLayout() {
             <Logo size={26} tone="white" />
             <p>Your personal ustoz for SAT Reading &amp; Writing — from 200 to 800.</p>
             {!user && <Link className="btn sun" to="/signup">Start free trial</Link>}
+            <Trustpilot variant="foot" />
           </div>
           <div>
             <b>Practice</b>
@@ -112,7 +114,8 @@ export default function PublicLayout() {
             {site?.about?.telegram && <a href={site.about.telegram} target="_blank" rel="noreferrer">Telegram</a>}
           </div>
         </div>
-        <p className="pub-legal">© {new Date().getFullYear()} SAT Ustoz. SAT is a trademark of the College Board, which does not endorse this site.</p>
+        <p className="pub-legal">© {new Date().getFullYear()} SAT Ustoz. SAT is a trademark of the College Board, which does not endorse this site.
+          {' '}<Link to="/p/oferta">Terms</Link> · <Link to="/cookies">Cookie policy</Link> · <button type="button" className="linklike" onClick={openCookieSettings}>Cookie settings</button></p>
       </footer>
     </div>
   );

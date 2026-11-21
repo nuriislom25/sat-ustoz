@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, fmtDate } from '../../api.js';
+import { api, authHeaders, fmtDate } from '../../api.js';
 import { useToast } from '../../context.jsx';
 import { Card, Field, Gate, Modal, PageHeader, Segmented, useAsync } from '../../components/ui.jsx';
 import { IconDownload, IconEdit, IconPlus, IconSearch, IconTrash } from '../../components/icons.jsx';
@@ -32,7 +32,7 @@ const VIA = { receipt: 'Bot receipt', wallet: 'Wallet', teacher: 'Teacher', priz
 const STATUS = { pending: ['Waiting', 'warn'], approved: ['Approved', 'good'], rejected: ['Rejected', 'bad'], done: ['Done', ''] };
 const TYPES = [['', 'All types'], ['top_up', 'Top-ups'], ['plan', 'Plans'], ['mock', 'Extra full mocks'], ['quiz', 'Extra quizzes'], ['lesson', 'Early lessons'], ['prize', 'Prizes'], ['correction', 'Corrections']];
 const STATES = [['', 'Any status'], ['pending', 'Waiting'], ['approved', 'Approved'], ['rejected', 'Rejected'], ['done', 'Done']];
-const authed = (url) => fetch(url, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+const authed = (url) => fetch(url, { headers: authHeaders() });
 
 /** Every payment, one row each: bot receipts (waiting / approved / rejected), wallet moves, direct plan payments. */
 function Payments({ period }) {

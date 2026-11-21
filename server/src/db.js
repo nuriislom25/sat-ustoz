@@ -360,6 +360,7 @@ const DEFAULT_SETTINGS = {
   lb_prizes: '',           // leaderboard prizes for places 1–3 (JSON: [{ text, bonus }])
   ref_bonus: '20000',      // invite a friend: the inviter's bonus after the friend's first paid plan
   ref_friend_bonus: '10000', // ... and the friend's welcome bonus
+  trustpilot_url: '', trustpilot_bu: '', trustpilot_template: '', // Trustpilot review page and TrustBox widget
   lb_prize_note: '',
   quiz_extra_price: '3000', // one quiz beyond the plan's daily quizzes, paid from the balance
   drip_days: '7', // free students: a new roadmap lesson opens this many days after passing the previous one

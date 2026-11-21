@@ -6,6 +6,7 @@ import { UpdateBar } from './updates.jsx';
 import ActivityTracker from './components/ActivityTracker.jsx';
 import { api } from './api.js';
 import { useAuth } from './context.jsx';
+import CookieBanner, { CookiePolicy } from './components/Consent.jsx';
 import { Spinner } from './components/ui.jsx';
 import { LimitWall } from './usage.jsx';
 import { ComingSoon, subjectOf, ToMath } from './subject.jsx';
@@ -24,7 +25,7 @@ const loadDashboard = () => import('./pages/student/Dashboard.jsx');
 const Layout = page(loadLayout);
 const Dashboard = page(loadDashboard);
 // a signed-in visit fetches both at once, while the account is still loading (no extra wait)
-try { if (localStorage.getItem('token')) { loadLayout(); loadDashboard(); } } catch { /* storage blocked */ }
+try { if (localStorage.getItem('signed-in') || localStorage.getItem('token')) { loadLayout(); loadDashboard(); } } catch { /* storage blocked */ }
 const MockTaker = page(() => import('./pages/mock/MockTaker.jsx'));
 const MockResult = page(() => import('./pages/mock/MockResult.jsx'));
 const Leaderboard = page(() => import('./pages/student/Leaderboard.jsx'));
@@ -125,7 +126,7 @@ export default function App() {
   if (loading) return <div style={{ height: '100vh', display: 'grid', placeItems: 'center' }}><Spinner /></div>;
   // visitors: the website (home, free practice tests, guides) — sign-in only when they want it
   if (!user) return (
-    <Suspense fallback={<Wait />}><OfflineBar />
+    <Suspense fallback={<Wait />}><OfflineBar /><CookieBanner />
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Login />} />
@@ -137,6 +138,7 @@ export default function App() {
         <Route path="practice/result/:id" element={<Practice />} />
         <Route path="s/:id" element={<SectionPage />} />
         <Route path="p/:slug" element={<PageView />} />
+        <Route path="cookies" element={<CookiePolicy />} />
         <Route path="about" element={<AboutPage />} />
         <Route path="uz" element={<LocalPage />} />
         <Route path="uz/:slug" element={<LocalPage />} />
@@ -151,7 +153,7 @@ export default function App() {
   const home = <Navigate to="/" replace />;
 
   return (
-    <Suspense fallback={<Wait />}><OfflineBar /><UpdateBar />{user.role === 'student' && <><ActivityTracker /><LimitWall /></>}
+    <Suspense fallback={<Wait />}><OfflineBar /><UpdateBar /><CookieBanner />{user.role === 'student' && <><ActivityTracker /><LimitWall /></>}
     <PageGuard path={loc.pathname}><Routes>
       {user.role === 'student' && <Route path="/quiz/:id" element={<QuizTaker />} />}
       {user.role === 'student' && <Route path="/placement/test" element={<PlacementTest />} />}
@@ -167,6 +169,7 @@ export default function App() {
       </Route>
       <Route path="/s/:id" element={<PublicLayout />}><Route index element={<SectionPage />} /></Route>
       <Route path="/p/:slug" element={<PublicLayout />}><Route index element={<PageView />} /></Route>
+      <Route path="/cookies" element={<PublicLayout />}><Route index element={<CookiePolicy />} /></Route>
       <Route path="/about" element={<PublicLayout />}><Route index element={<AboutPage />} /></Route>
       <Route path="/uz" element={<PublicLayout />}><Route index element={<LocalPage />} /><Route path=":slug" element={<LocalPage />} /></Route>
       <Route path="/ru" element={<PublicLayout />}><Route index element={<LocalPage />} /></Route>
