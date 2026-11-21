@@ -129,47 +129,59 @@ function SampleReport() {
   );
 }
 
-/** Plans side by side (a row you can swipe on phones). The plan most students take stands out. */
+const PP_COLORS = ['#22B07D', '#3B82F6', '#F07A55', '#F5B82E', '#8E5CF7'];
+
+/** Plans: free + 4 paid plans. On phones the cards are a swipeable slider with dots. */
 function Pricing({ cfg, trial }) {
-  const row = useRef(null);
-  // phones: the row opens on the plan most students take, the others are a swipe away
+  const [at, setAt] = useState(0);
+  const [hold, setHold] = useState(false);
+  const rail = useRef(null);
+  const count = (cfg?.tiers?.length || 0) + 1;
+  // auto-play: one card every 3.5 s, back to the start at the end; pauses while the visitor hovers or touches
   useEffect(() => {
-    const el = row.current; const star = el?.querySelector('.lp-plan.star');
-    if (el && star && el.scrollWidth > el.clientWidth) el.scrollLeft = star.offsetLeft - (el.clientWidth - star.clientWidth) / 2;
-  }, [cfg]);
+    // phones: no auto-play (it moves the cards under the visitor's thumb)
+    if (!cfg?.tiers || hold || window.matchMedia('(prefers-reduced-motion: reduce), (max-width: 760px)').matches) return undefined;
+    const t = setInterval(() => {
+      const el = rail.current; if (!el) return;
+      const end = el.scrollLeft + el.clientWidth >= el.scrollWidth - 8;
+      if (end) el.scrollTo({ left: 0, behavior: 'smooth' });
+      else { const c = el.children[Math.min(count - 1, at + 1)]; if (c) el.scrollTo({ left: c.offsetLeft - el.offsetLeft, behavior: 'smooth' }); }
+    }, 3500);
+    return () => clearInterval(t);
+  }, [cfg, hold, at, count]);
   if (!cfg?.tiers) return null;
   const cur = cfg.prices?.currency || 'UZS';
   const cards = [
-    { id: 'free', name: 'Free', price: 0, perks: [[true, `${cfg.free.q_day} questions a day`], [true, 'Free practice tests'], [true, `${cfg.free.fm_week} full mock a week`], [true, 'First roadmap lessons']] },
+    { id: 'free', name: 'Free', price: 0, perks: [[true, `${cfg.free.q_day} questions a day across all tests`], [true, 'Free practice tests'], [true, `${cfg.free.fm_week} full mock a week`], [true, 'First roadmap lessons, then one a week']] },
     ...cfg.tiers.map((t) => ({ ...t, perks: tierPerks(t).filter(([on]) => on) })),
   ];
+  const onScroll = () => {
+    const el = rail.current; if (!el) return;
+    const w = el.firstElementChild?.getBoundingClientRect().width || 1;
+    setAt(Math.min(count - 1, Math.round(el.scrollLeft / (w + 16))));
+  };
+  const go = (i) => { const el = rail.current; const c = el?.children[i]; if (c) el.scrollTo({ left: c.offsetLeft - el.offsetLeft, behavior: 'smooth' }); };
   return (
-    <section className="pub-wrap lp-plans" id="pricing">
-      <div className="lp-plans-head">
-        <h2 className="pub-h2">Plans</h2>
-        <p>Start free. Pay by month when you are ready, from your SAT Ustoz wallet or by card in our Telegram bot.</p>
+    <section className="pub-wrap" id="pricing">
+      <h2 className="pub-h2">Simple pricing</h2>
+      <div className="pp-wrap" onMouseEnter={() => setHold(true)} onMouseLeave={() => setHold(false)} onTouchStart={() => setHold(true)} onTouchEnd={() => setTimeout(() => setHold(false), 4000)}>
+      <button className="pp-arrow l" aria-label="Previous plan" onClick={() => go(Math.max(0, at - 1))}>‹</button>
+      <div className="pub-prices tiers5" ref={rail} onScroll={onScroll}>
+        {cards.map((t, i) => (
+          <div key={t.id} className={`pub-price pp-c ${i === 3 ? 'hot' : ''}`} style={{ '--tc': PP_COLORS[i % PP_COLORS.length], '--tilt': `${i % 2 ? 3 : -3}deg` }}>
+            {i === 3 && <span className="ribbon">Most popular</span>}
+            <small className="pp-tag">{i === 0 ? 'Start' : `Plan ${i}`}</small>
+            <h3 className="pp-name">{t.name}</h3>
+            <b>{t.price ? money(t.price) : '0'}</b><span>{t.price ? `${cur} / ${t.live ? '12 live lessons' : 'month'}` : 'forever'}</span>
+            <ul>{t.perks.map(([, x]) => <li key={x}><IconCheck /> {x}</li>)}</ul>
+            <Link className={`btn ${i === 3 ? 'sun' : 'ghost'} lg block`} to={i === 0 ? '/practice' : trial}>{i === 0 ? 'Take a free test' : 'Choose'}</Link>
+          </div>
+        ))}
       </div>
-      <div className="lp-plan-row" ref={row}>
-        {cards.map((t) => {
-          const star = t.id === 't3'; const live = !!t.live;
-          return (
-            <article key={t.id} className={`lp-plan ${star ? 'star' : ''} ${live ? 'live' : ''} ${t.id === 'free' ? 'free' : ''}`}>
-              {star && <span className="lp-plan-flag">Most chosen</span>}
-              <h3>{t.name}</h3>
-              <p className="lp-price">{t.price ? <><b>{money(t.price)}</b><span>{cur} / {live ? '12 lessons' : 'month'}</span></> : <><b>0</b><span>forever</span></>}</p>
-              <ul>{t.perks.slice(0, 6).map(([, x]) => <li key={x}><IconCheck width={16} height={16} /> {x}</li>)}</ul>
-              <Link className={`btn block ${star ? 'sun' : live ? 'primary' : 'ghost'}`} to={t.id === 'free' ? '/practice' : live ? (trial === '/' ? '/live' : trial) : trial}>
-                {t.id === 'free' ? 'Take a free test' : live ? 'Choose a lesson time' : `Start with ${t.name}`}
-              </Link>
-            </article>
-          );
-        })}
+      <button className="pp-arrow r" aria-label="Next plan" onClick={() => go(Math.min(count - 1, at + 1))}>›</button>
       </div>
-      <ul className="lp-plan-notes">
-        {cfg.bundle_discount > 0 && <li>English and Math together: {cfg.bundle_discount}% off both</li>}
-        <li>Extra full mock: {money(cfg.fm_extra_price)} {cur}</li>
-        <li>Questions about plans? Write in the Ask Ustoz chat</li>
-      </ul>
+      <div className="pp-dots" aria-hidden="true">{cards.map((c, i) => <button key={c.id} className={at === i ? 'on' : ''} onClick={() => go(i)} tabIndex={-1} />)}</div>
+      <p className="muted center pp-note">Swipe to see every plan · extra full mock {money(cfg.fm_extra_price)} {cur} from your wallet</p>
     </section>
   );
 }
