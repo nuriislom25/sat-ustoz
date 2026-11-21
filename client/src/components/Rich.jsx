@@ -1,6 +1,7 @@
 /**
  * Inline markup used in course content:
  *   **bold**  *italic*  ~~struck out~~  [[underlined]]  ______ (SAT blank)
+ *   ![caption](/api/qimg/<id>)  a picture in the question (graph, chart, figure) — only our uploads or https links
  * Markers can nest (e.g. *The **students** asked.*). Anything else is plain text — no HTML is ever injected.
  */
 function findClose(s, from, marker) {
@@ -16,12 +17,22 @@ function findClose(s, from, marker) {
   return -1;
 }
 
+// pictures: uploaded ones (/api/qimg/…) or an https link; nothing else becomes an <img>
+export const IMG_RE = /^!\[([^\]\n]{0,200})\]\((\/api\/qimg\/[A-Za-z0-9_-]{10,40}|https:\/\/[^\s)]{4,500})\)/;
+export function QImg({ src, alt }) {
+  return <img className="q-img" src={src} alt={alt || 'Figure'} loading="lazy" decoding="async" draggable={false} />;
+}
+
 function parse(s, keyBase = 'r') {
   const out = [];
   let buf = '';
   let k = 0;
   const flush = () => { if (buf) { out.push(buf); buf = ''; } };
   for (let i = 0; i < s.length;) {
+    if (s[i] === '!' && s[i + 1] === '[') {
+      const im = s.slice(i).match(IMG_RE);
+      if (im) { flush(); out.push(<QImg key={`${keyBase}${k++}`} src={im[2]} alt={im[1]} />); i += im[0].length; continue; }
+    }
     const blank = s.slice(i).match(/^_{3,}/);
     if (blank) { flush(); out.push(<span key={`${keyBase}${k++}`} className="blank" aria-label="blank" />); i += blank[0].length; continue; }
     const pairs = [['**', '**', 'b'], ['~~', '~~', 's'], ['[[', ']]', 'u'], ['*', '*', 'i']];

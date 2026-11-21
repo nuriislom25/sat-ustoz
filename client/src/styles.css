@@ -4189,3 +4189,14 @@ a.mr-lesson:hover { text-decoration: none; border-color: var(--m); }
 }
 
 
+
+/* pictures in questions (graphs, charts, figures) */
+.q-img { display: block; max-width: 100%; height: auto; max-height: 520px; margin: 12px auto; padding: 8px; border-radius: 10px; background: #fff; border: 1px solid var(--line, #e5e7ef); object-fit: contain; }
+.bb-shell .q-img { border-color: var(--bb-line, #d7dbe7); }
+.mtx .q-img, .bb-prompt .q-img, .bb-t .q-img { margin: 8px 0; }
+.qpic-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.qpic-thumbs { display: flex; gap: 8px; flex-wrap: wrap; width: 100%; }
+.qpic-thumb { position: relative; display: inline-grid; place-items: center; width: 96px; height: 72px; border-radius: 10px; border: 1px solid var(--line); background: #fff; overflow: hidden; }
+.qpic-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.qpic-thumb button { position: absolute; top: 4px; right: 4px; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 8px; border: 0; background: rgba(22, 27, 61, .75); color: #fff; cursor: pointer; }
+.qpic-preview { display: grid; gap: 6px; padding: 12px 14px; border-radius: 12px; background: var(--surface-2); border: 1px dashed var(--line); }

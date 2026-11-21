@@ -1,5 +1,6 @@
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
+import { IMG_RE, QImg } from '../../components/Rich.jsx';
 
 /**
  * Text with formulas: $…$ inline, $$…$$ on its own line (KaTeX). "\$" is a dollar sign.
@@ -30,11 +31,26 @@ export function parts(text) {
   return out;
 }
 
+// plain text between formulas can hold pictures: ![caption](/api/qimg/…)
+const IMG_ANY = new RegExp(IMG_RE.source.slice(1), 'g');
+function withPictures(t, key) {
+  if (!t.includes('![')) return t;
+  const out = []; let last = 0; let m;
+  IMG_ANY.lastIndex = 0;
+  while ((m = IMG_ANY.exec(t))) {
+    if (m.index > last) out.push(t.slice(last, m.index));
+    out.push(<QImg key={`${key}-${m.index}`} src={m[2]} alt={m[1]} />);
+    last = IMG_ANY.lastIndex;
+  }
+  out.push(t.slice(last));
+  return out;
+}
+
 export default function MathText({ children, as: Tag = 'span', className = '' }) {
   return (
     <Tag className={`mtx ${className}`}>
       {parts(children).map((p, i) => {
-        if (p.t != null) return <span key={i}>{p.t.replace(/\\\$/g, '$')}</span>;
+        if (p.t != null) return <span key={i}>{withPictures(p.t.replace(/\\\$/g, '$'), i)}</span>;
         const html = tex(p.d ?? p.i, p.d != null);
         if (!html) return <code key={i}>{p.d ?? p.i}</code>;
         return <span key={i} className={p.d != null ? 'mtx-d' : 'mtx-i'} dangerouslySetInnerHTML={{ __html: html }} />;

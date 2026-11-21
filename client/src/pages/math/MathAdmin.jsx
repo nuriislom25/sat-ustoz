@@ -4,6 +4,7 @@ import { useToast } from '../../context.jsx';
 import { Card, Confirm, Field, Gate, Modal, PageHeader, Segmented, useAsync } from '../../components/ui.jsx';
 import { IconEye, IconEyeOff, IconPlus, IconSearch, IconTrash } from '../../components/icons.jsx';
 import MathText from './MathText.jsx';
+import { PictureBar, usePictureField } from '../../components/QuestionPictures.jsx';
 import MathRoadAdmin from './MathRoadAdmin.jsx';
 
 const L = ['A', 'B', 'C', 'D'];
@@ -80,6 +81,7 @@ function Editor({ x, domains, onClose, onDone }) {
   });
   const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const pic = usePictureField(() => f.prompt, (v) => setF((o) => ({ ...o, prompt: v })));
   const skills = domains.find((d) => d.id === f.domain)?.skills || [];
   const save = async () => {
     setBusy(true);
@@ -101,7 +103,8 @@ function Editor({ x, domains, onClose, onDone }) {
           <button type="button" className={`mh-chip ${f.kind === 'mcq' ? 'on' : ''}`} onClick={() => setF({ ...f, kind: 'mcq' })}>Multiple choice</button>
           <button type="button" className={`mh-chip ${f.kind === 'spr' ? 'on' : ''}`} onClick={() => setF({ ...f, kind: 'spr' })}>Typed answer</button>
         </div>
-        <Field label="Question" hint="formulas between $ … $"><textarea rows={3} value={f.prompt} onChange={set('prompt')} placeholder="If $3x + 7 = 22$, what is the value of $x$?" /></Field>
+        <Field label="Question" hint="formulas between $ … $"><textarea ref={pic.ref} onPaste={pic.onPaste} onDrop={pic.onDrop} rows={3} value={f.prompt} onChange={set('prompt')} placeholder="If $3x + 7 = 22$, what is the value of $x$?" /></Field>
+        <PictureBar field={pic} text={f.prompt} onChange={(v) => setF((o) => ({ ...o, prompt: v }))} />
         {f.prompt && <div className="ma-preview"><small>Preview</small><MathText as="div">{f.prompt}</MathText></div>}
         {f.kind === 'mcq' ? (
           <div className="ma-opts">

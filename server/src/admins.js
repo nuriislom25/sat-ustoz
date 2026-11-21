@@ -44,7 +44,7 @@ export function sectionOf(method, path) {
   if (/^\/(plans|tiers)(\/|$)/.test(p) && write) return 'settings';
   if (/^\/(support|tg-support|asks?)(\/|$)/.test(p)) return 'support';
   if (/^\/(students|groups|groups-students|progress|assignments|consultations|placement|leaderboard|live)(\/|$)/.test(p)) return 'students';
-  if (/^\/(roadmap|lessons|lesson-checks|qbank|full-mocks|quizzes|quiz-folders|questions|vocab|site|website|quality|review|question-reports|videos|videos-config|gifs|reserved|pictures|game|math)(\/|$)/.test(p)) return write ? 'content' : null;
+  if (/^\/(roadmap|lessons|lesson-checks|qbank|full-mocks|quizzes|quiz-folders|questions|vocab|site|website|quality|review|question-reports|videos|videos-config|gifs|reserved|pictures|game|math|qimg)(\/|$)/.test(p)) return write ? 'content' : null;
   return null;
 }
 

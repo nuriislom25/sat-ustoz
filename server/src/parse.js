@@ -31,6 +31,7 @@ const ALIASES = {
   topic: ['topic', 'mavzu', 'skill', 'category'],
   module: ['module', 'modul', 'part', 'qism'],
   difficulty: ['difficulty', 'level', 'qiyinlik', 'daraja'],
+  image: ['image', 'picture', 'graph', 'figure', 'chart', 'rasm', 'grafik', 'imageurl', 'picture url'],
 };
 
 function pick(row, key) {
@@ -43,6 +44,15 @@ function pick(row, key) {
   return '';
 }
 
+/** An "image" column: a picture link (https://… or an uploaded /api/qimg/… id) placed under the passage. */
+const imgToken = (v) => {
+  const u = String(v || '').trim();
+  if (/^https:\/\/\S+$/i.test(u) || /^\/api\/qimg\/[\w-]+$/.test(u)) return `![Figure](${u})`;
+  if (/^[\w-]{10,40}$/.test(u)) return `![Figure](/api/qimg/${u})`;
+  return '';
+};
+const withImage = (passage, img) => { const t = imgToken(img); return t ? (passage ? `${passage}\n\n${t}` : t) : passage; };
+
 function cleanCorrect(v) {
   const m = String(v || '').trim().toUpperCase().match(/[ABCD]/);
   return m ? m[0] : '';
@@ -54,7 +64,7 @@ export function parseSheet(buffer) {
   const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
   return rows
     .map((r) => ({
-      passage: pick(r, 'passage'),
+      passage: withImage(pick(r, 'passage'), pick(r, 'image')),
       prompt: pick(r, 'prompt') || DEFAULT_PROMPT,
       opt_a: pick(r, 'a'),
       opt_b: pick(r, 'b'),

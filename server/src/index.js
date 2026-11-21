@@ -33,6 +33,7 @@ import { registerQuality } from './quality.js';
 import { migrateAssignments, registerAssignments, assignedQuizOpen, assignmentBlock } from './assignments.js';
 import { migrateMath, syncMath, registerMath } from './math.js';
 import { migrateSubjects, registerSubjects } from './mathroad.js';
+import { migrateQuestionImages, registerQuestionImagesPublic, registerQuestionImages } from './qimages.js';
 import { migrateGroups, backfillMembers, registerGroups, setStudentGroups } from './groups.js';
 import { migrateFolders, registerFolders } from './folders.js';
 import { migrateReserved, registerReserved, scanReserved, scanSoon } from './reserved.js';
@@ -106,7 +107,7 @@ const schemaOk = schemaDone?.value === schema && await db.one(`SELECT (to_regcla
     AND to_regclass('public.live_bookings') IS NOT NULL AND to_regclass('public.tg_logins') IS NOT NULL
     AND to_regclass('public.math_questions') IS NOT NULL AND to_regclass('public.assignment_grants') IS NOT NULL
     AND to_regclass('public.group_members') IS NOT NULL AND to_regclass('public.group_attendance') IS NOT NULL
-    AND to_regclass('public.quiz_folders') IS NOT NULL AND to_regclass('public.math_lesson_progress') IS NOT NULL
+    AND to_regclass('public.quiz_folders') IS NOT NULL AND to_regclass('public.math_lesson_progress') IS NOT NULL AND to_regclass('public.question_images') IS NOT NULL
     AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'math_sub_until')
     AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'admin_perms')) AS ok`).then((r) => !!r?.ok).catch(() => false);
 if (!schemaOk) {
@@ -152,6 +153,7 @@ if (!schemaOk) {
   await migrateGroups();
   await migrateFolders();
   await migrateSubjects();
+  await migrateQuestionImages();
   // after a database is copied, the id counters can stay behind the rows (new inserts then fail with "duplicate key"):
   // move every id counter past the highest id in its table
   try {
@@ -388,6 +390,7 @@ registerBot(app, { h, bad });
 registerGame(app, { h, bad, accessFor: (u) => accessFor(u) }); // Word Arena: guests can join with a code
 
 // profile photos: public URLs so <img> tags work without a token
+registerQuestionImagesPublic(app, { h }); // pictures in questions: needed by guests taking the practice test
 app.get('/api/avatars/:id', h(async (req, res) => {
   const a = await db.one('SELECT data, type FROM user_avatars WHERE user_id = ?', [Number(req.params.id)]);
   if (!a) return res.status(404).end();
@@ -910,6 +913,7 @@ async function quizList(user) {
 }
 app.get('/api/quizzes', h(async (req, res) => res.json(await quizList(req.user))));
 registerFolders(app, { h, bad, requireMaster });
+registerQuestionImages(app, { h, bad, requireMaster, upload });
 
 async function saveQuiz(req, existingId) {
   const { title, section, kind, is_public, duration_min, group_ids, questions } = req.body || {};

@@ -4,6 +4,22 @@ import { api } from '../../api.js';
 import { useToast } from '../../context.jsx';
 import { Card, Field, Gate, PageHeader, Segmented, Spinner, useAsync } from '../../components/ui.jsx';
 import { IconDownload, IconPlus, IconTrash, IconUpload } from '../../components/icons.jsx';
+import { PictureBar, picturesIn, usePictureField } from '../../components/QuestionPictures.jsx';
+import { Passage } from '../../components/Passage.jsx';
+
+/** Passage box with pictures: upload, paste a screenshot or drop a file; a preview shows how students see it. */
+function PassageField({ q, upd }) {
+  const field = usePictureField(() => q.passage, (v) => upd(q._k, { passage: v }));
+  const pics = picturesIn(q.passage).length;
+  return (
+    <>
+      <Field label={"Passage"}><textarea ref={field.ref} rows={pics ? 5 : 3} value={q.passage} onPaste={field.onPaste} onDrop={field.onDrop}
+        onChange={(e) => upd(q._k, { passage: e.target.value })} /></Field>
+      <PictureBar field={field} text={q.passage} onChange={(v) => upd(q._k, { passage: v })} />
+      {pics > 0 && <div className="qpic-preview"><small className="muted">How students see it</small><Passage text={q.passage} /></div>}
+    </>
+  );
+}
 
 const blank = () => ({ _k: Math.random().toString(36).slice(2), passage: '', prompt: 'Which choice completes the text so that it conforms to the conventions of Standard English?', opt_a: '', opt_b: '', opt_c: '', opt_d: '', correct: '', explanation: '', tip: '', topic: 'General' });
 const problems = (q) => {
@@ -124,7 +140,7 @@ Explanation: Subordinate clause is followed by a comma.
 Topic: Boundaries
 
 2. Next question ...`}</pre>
-        <p className="muted" style={{ marginTop: 10, fontSize: '.86rem' }}>{"Excel: columns — passage, question, A, B, C, D, correct, explanation, tip, topic (download the template). Practice quizzes show the answer and tip right after each question; mocks and the readiness check show them at the end."}</p>
+        <p className="muted" style={{ marginTop: 10, fontSize: '.86rem' }}>{"Excel: columns — passage, question, A, B, C, D, correct, explanation, tip, topic, image (a picture link; optional) (download the template). Pictures can also be added to any question below: Add picture, or paste a screenshot into the passage. Practice quizzes show the answer and tip right after each question; mocks and the readiness check show them at the end."}</p>
       </details>
 
       <div className="card-title" style={{ marginBottom: 0 }}>
@@ -139,13 +155,13 @@ Topic: Boundaries
             <details key={q._k} className={`q-edit ${showErrors && p.length ? 'invalid' : ''}`} open={!q.id && !q.passage}>
               <summary>
                 <span className="q-num">{i + 1}</span>
-                <span className="grow" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.passage || <i className="muted">{"Empty question"}</i>}</span>
+                <span className="grow" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.passage ? q.passage.replace(/!\[[^\]]*\]\([^)]*\)/g, '[picture]') : <i className="muted">{"Empty question"}</i>}</span>
                 {p.length > 0 && <span className="chip bad">{p[0]}</span>}
                 <span className="chip">{q.topic}</span>
                 {q.correct && <span className="chip good">{q.correct}</span>}
               </summary>
               <div className="q-body">
-                <Field label={"Passage"}><textarea rows={3} value={q.passage} onChange={(e) => upd(q._k, { passage: e.target.value })} /></Field>
+                <PassageField q={q} upd={upd} />
                 <Field label={"Question"}><input value={q.prompt} onChange={(e) => upd(q._k, { prompt: e.target.value })} /></Field>
                 <div className="form-grid">
                   {['a', 'b', 'c', 'd'].map((l) => (
