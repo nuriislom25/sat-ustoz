@@ -29,6 +29,7 @@ import { migrateReview, registerReview } from './review.js';
 import { migrateVisits, registerVisits } from './visits.js';
 import { migrateAdmins, registerAdmins, adminGuard, permsOf } from './admins.js';
 import { migrateGrowth, registerGrowth } from './growth.js';
+import { migrateMathMocks, registerMathMocks } from './mathmock.js';
 import { migrateCalib } from './calibrate.js';
 import { registerQuality } from './quality.js';
 import { migrateAssignments, registerAssignments, assignedQuizOpen, assignmentBlock } from './assignments.js';
@@ -156,6 +157,7 @@ if (!schemaOk) {
   await migrateSubjects();
   await migrateQuestionImages();
   await migrateGrowth();
+  await migrateMathMocks();
   // indexes for the leaderboard and teacher pages (they read by time, and by student)
   await db.exec(`
 CREATE INDEX IF NOT EXISTS idx_qba_time ON qbank_answers(answered_at);
@@ -464,6 +466,7 @@ registerMistakes(app, { h, bad, requireStudent, requireMaster });
 registerFocus(app, { h, bad, requireStudent });
 registerPictures(app, { h, bad, requireMaster });
 registerGrowth(app, { h, bad, requireMaster, requireStudent });
+registerMathMocks(app, { h, bad, requireMaster, requireStudent, upload });
 
 app.get('/api/me', h(async (req, res) => res.json(await mepayload(req.user))));
 app.get('/api/sat-dates', (req, res) => res.json(SAT_DATES));

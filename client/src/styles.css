@@ -4259,3 +4259,36 @@ a.mr-lesson:hover { text-decoration: none; border-color: var(--m); }
 .paycard-bottom > div { min-width: 0; }
 .paycard-bottom > div:first-child span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 480px) { .wallet .paycard-bottom { flex-direction: column; align-items: flex-start; gap: 8px; } .wallet .paycard-bottom > div:last-child { text-align: left !important; } }
+
+/* ---------- plan upgrade reminder ---------- */
+.upsell { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px 28px; align-items: center; padding: 22px 24px; border-radius: 22px;
+  background: var(--night); color: #fff; position: relative; overflow: hidden; margin: 0 0 16px; }
+.upsell::after { content: ''; position: absolute; right: -60px; top: -80px; width: 260px; height: 260px; border-radius: 50%; background: radial-gradient(circle, rgba(255,203,61,.28), transparent 70%); pointer-events: none; }
+.upsell h2 { color: #fff; font-size: clamp(1.1rem, .9rem + .7vw, 1.4rem); margin: 4px 0 10px; }
+.upsell-cur { color: rgba(255,255,255,.65); font-size: .82rem; } .upsell-cur b { color: var(--sun); }
+.upsell ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 18px; font-size: .9rem; }
+.upsell li { display: flex; gap: 6px; align-items: flex-start; color: rgba(255,255,255,.9); } .upsell li svg { color: var(--sun); flex: none; margin-top: 3px; }
+.upsell-time { margin: 12px 0 0; font-size: .86rem; color: rgba(255,255,255,.7); }
+.upsell-side { display: grid; justify-items: center; gap: 4px; text-align: center; position: relative; z-index: 1; min-width: 170px; }
+.upsell-price { font: 800 1.6rem var(--display); color: var(--sun); letter-spacing: -.02em; }
+.upsell-side small { color: rgba(255,255,255,.7); margin-bottom: 6px; }
+.upsell-later { color: rgba(255,255,255,.6); font-size: .82rem; margin-top: 4px; }
+:root[data-theme='dark'] .upsell { background: #1E2A66; }
+@media (max-width: 700px) { .upsell { grid-template-columns: 1fr; padding: 18px; } .upsell ul { grid-template-columns: 1fr; } .upsell-side { justify-items: stretch; } .upsell-side .btn { width: 100%; } }
+.d-up:empty { display: none; }
+@media (max-width: 1100px) { .d-up { order: 4; } }
+.per-day { color: var(--muted); font-size: .8rem; margin-top: -2px; }
+
+/* Math full mock result */
+.mm-result { max-width: 1100px; margin: 0 auto; padding: clamp(14px, 3vw, 32px) 16px 40px; }
+.mm-result .mr-hero > div:first-child { flex: 1 1 320px; min-width: 0; }
+.mm-domains { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.mm-domains .card { display: grid; gap: 6px; padding: 14px; }
+.mm-domains b { font: 800 1.3rem var(--display); }
+@media (max-width: 760px) { .mm-domains { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.mm-review { display: grid; gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.mm-opts { margin: 0; padding-left: 22px; list-style: upper-alpha; display: grid; gap: 6px; }
+.mm-opts li { padding: 8px 12px; border-radius: 10px; background: var(--surface-2); }
+.mm-opts li.ok { background: var(--mint-50); color: var(--mint-ink); font-weight: 600; } .mm-opts li.bad { background: var(--coral-50); color: var(--coral-ink); }
+.mm-expl { padding: 12px 14px; border-radius: 12px; background: var(--sky-50); display: grid; gap: 4px; }
+.mm-result .mr-acc b { font-size: clamp(1.8rem, 1.2rem + 2vw, 2.4rem); }

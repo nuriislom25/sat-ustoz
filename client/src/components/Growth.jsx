@@ -182,3 +182,62 @@ function ShareModal({ card, onClose }) {
 
 export const firstName = (n) => { const w = String(n || '').trim().split(/\s+/); return w[0] ? `${w[0]}${w[1] ? ` ${w[1][0]}.` : ''}` : ''; };
 export const today = () => new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+
+/* ---------------- plan upgrade reminder ---------------- */
+/**
+ * Until a student has the full self-paced plan (Pro Max), the dashboard shows what the next plan adds, in terms of
+ * what they already do: the features they don't have yet (real ones, from the plan list), the price per day, the
+ * days to their SAT. "Later" hides it for three days; it never blocks anything.
+ */
+const LADDER = ['free', 't1', 't2', 't3'];
+const HIDE_KEY = (s) => `upsell-hide-${s}`;
+export function UpgradeNudge({ user, subject = 'english', answered = 0 }) {
+  const st = useAsync(() => api.get('/plans').catch(() => null), []);
+  const [hidden, setHidden] = useState(() => { try { return Date.now() < Number(localStorage.getItem(HIDE_KEY(subject)) || 0); } catch { return false; } });
+  const acc = subject === 'math' ? user.access?.math : user.access;
+  const paid = subject === 'math' ? !!acc?.sub_active : !!user.sub_active;
+  const cur = acc?.tier?.id === 'open' ? 'open' : paid ? acc?.tier?.id : 'free';
+  const level = LADDER.indexOf(cur === 'open' ? 't3' : cur);
+  if (hidden || level < 0 || level >= 3 || !st.data?.tiers) return null;
+  const tiers = st.data.tiers;
+  const top = tiers.find((t) => t.id === 't3');
+  const mine = tiers.find((t) => t.id === cur);
+  if (!top) return null;
+  const price = subject === 'math' ? top.math_price || top.price : top.price;
+  const perDay = Math.round(price / 30 / 100) * 100;
+  const days = user.exam_date ? Math.ceil((new Date(`${user.exam_date}T00:00:00`) - new Date()) / 864e5) : null;
+  const has = (t, k) => !!t?.[k];
+  const gains = subject === 'math' ? [
+    level === 0 && `Unlimited Math practice (now ${st.data.math_free?.q_day || 10} questions a day)`,
+    'Math full mocks every week, with Desmos',
+    'Every Math roadmap lesson as soon as it is out',
+    !has(mine, 'ask') && 'Ask the teacher about any question',
+  ].filter(Boolean) : [
+    !has(mine, 'video') && 'Video lessons for every roadmap step',
+    !has(mine, 'roadmap') && 'The full roadmap from 200 to 800',
+    !has(mine, 'ask') && 'Ask the teacher about any question',
+    (mine?.fm_week ?? 1) > 0 && 'Unlimited full mocks',
+    level === 0 && `No daily limit (now ${st.data.free?.q_day || 100} answers a day)`,
+    (!mine?.consult_days || mine.consult_days > 7) && 'A 30-minute consultation every week',
+  ].filter(Boolean).slice(0, 4);
+  const title = level === 0
+    ? (answered > 0 ? `You have answered ${answered} questions. Imagine with no limit.` : 'The free plan is a taste. Pro Max is the full course.')
+    : `You're ${3 - level} step${3 - level > 1 ? 's' : ''} from the full course`;
+  const later = () => { try { localStorage.setItem(HIDE_KEY(subject), String(Date.now() + 3 * 864e5)); } catch { /* ignore */ } setHidden(true); };
+  return (
+    <section className="upsell" aria-label="Upgrade your plan">
+      <div className="upsell-main">
+        <small className="upsell-cur">Your plan: <b>{level === 0 ? 'Free' : mine?.name}</b>{subject === 'math' ? ' · Math' : ''}</small>
+        <h2>{title}</h2>
+        <ul>{gains.map((g) => <li key={g}><IconArrow width={14} height={14} /> {g}</li>)}</ul>
+        {days > 0 && days < 400 && <p className="upsell-time">{days} days to your SAT. Each week on the full course is a week of lessons and mocks you don't get back.</p>}
+      </div>
+      <div className="upsell-side">
+        <b className="upsell-price">{fmtMoney(perDay)}</b>
+        <small>a day with {top.name}</small>
+        <Link className="btn sun" to={`/subscribe?subject=${subject}`}>See {top.name}</Link>
+        <button className="linklike upsell-later" onClick={later}>Remind me later</button>
+      </div>
+    </section>
+  );
+}

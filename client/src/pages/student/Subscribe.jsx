@@ -116,10 +116,11 @@ export default function Subscribe() {
               const mine = t.id === tierId;
               return (
               <Card key={`${subj}-${t.id}`} className={`tier ${mine ? 'cur' : ''} ${i === 2 ? 'best' : ''}`}>
-                {i === 2 && <span className="chip primary ribbon">Most chosen</span>}
+                {i === 2 && <span className="chip primary ribbon">{['free', 't1', 't2'].includes(tierId) ? 'Best for you: everything included' : 'Most chosen'}</span>}
                 <small className="tier-n">{subj === 'both' ? 'English + Math' : subj === 'math' ? 'Math' : `Plan ${i + 1}`}</small>
                 <b className="tier-name">{t.name}</b>
                 <div className="price">{disc > 0 && !t.live && <s className="muted">{fmtMoney(full(t), p.currency)}</s>}{fmtMoney(t.live ? t.price : price, p.currency)}<small>{t.live ? ' / 12 lessons' : ' / month'}</small></div>
+                {!t.live && price > 0 && <small className="per-day">≈ {fmtMoney(Math.round(price / 30 / 100) * 100, p.currency)} a day</small>}
                 <ul className="tier-perks">{(subj === 'math' ? mathPerks(t) : subj === 'both' ? [...tierPerks(t).slice(0, 5), ...mathPerks(t).slice(0, 3)] : tierPerks(t)).map(([on, x]) => <li key={x} className={on ? '' : 'off'}>{on ? <IconCheck width={16} height={16} /> : <IconX width={14} height={14} />}{x}</li>)}</ul>
                 {t.live && <small className="muted tier-self">Fixed time, 3 lessons a week, one student per time</small>}
                 {!t.live && t.id === 't3' && <small className="muted tier-self">Everything, at your own pace</small>}

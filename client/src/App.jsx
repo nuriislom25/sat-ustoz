@@ -9,7 +9,7 @@ import { useAuth } from './context.jsx';
 import CookieBanner, { CookiePolicy } from './components/Consent.jsx';
 import { Spinner } from './components/ui.jsx';
 import { LimitWall } from './usage.jsx';
-import { ComingSoon, subjectOf, ToMath } from './subject.jsx';
+import { ComingSoon, panelSubject, subjectOf, ToMath } from './subject.jsx';
 import { IconDoc } from './components/icons.jsx';
 
 // pages load on demand: a smaller first download on mobile data (each page is its own file).
@@ -40,6 +40,10 @@ const FullMocks = page(() => import('./pages/fullmock/FullMocks.jsx'));
 const FullMockTaker = page(() => import('./pages/fullmock/FullMockTaker.jsx'));
 const FullMockResult = page(() => import('./pages/fullmock/FullMockResult.jsx'));
 const FullMockAdmin = page(() => import('./pages/master/FullMockAdmin.jsx'));
+const MathMocks = page(() => import('./pages/fullmock/MathMocks.jsx'));
+const MathMockTaker = page(() => import('./pages/fullmock/MathMocks.jsx').then((m) => ({ default: m.MathMockTaker })));
+const MathMockAdmin = page(() => import('./pages/math/MathMockAdmin.jsx'));
+const MathAdminPage = page(() => import('./pages/math/MathAdmin.jsx'));
 const Consultations = page(() => import('./pages/student/Consultations.jsx'));
 const ConsultationsAdmin = page(() => import('./pages/master/ConsultationsAdmin.jsx'));
 const Roadmap = page(() => import('./pages/student/Roadmap.jsx'));
@@ -150,6 +154,7 @@ export default function App() {
   // the placement test is optional: new students see an invitation on the dashboard, nothing is blocked
   // students work in one subject at a time (the switch next to the logo); Math mode swaps the pages below
   const math = user.role === 'student' && subjectOf(user) === 'math';
+  const tmath = user.role === 'master' && panelSubject(user) === 'math'; // teacher panel in Math mode
   const home = <Navigate to="/" replace />;
 
   return (
@@ -164,6 +169,7 @@ export default function App() {
       {user.role === 'student' && <Route path="/mock" element={<MockTaker />} />}
       {user.role === 'student' && <Route path="/exam/:itemId" element={<MockTaker />} />}
       {user.role === 'student' && <Route path="/full-mock/:aid" element={<FullMockTaker />} />}
+      {user.role === 'student' && <Route path="/math-mock/:aid" element={<MathMockTaker />} />}
       <Route path="/site" element={<PublicLayout />}>
         <Route index element={<Landing />} />
       </Route>
@@ -197,11 +203,11 @@ export default function App() {
             <Route path="quizzes/new" element={<QuizEditor />} />
             <Route path="quizzes/:id/edit" element={<QuizEditor />} />
             <Route path="quizzes/:id/view" element={<QuizPreview />} />
-            <Route path="roadmap" element={<RoadmapEditor />} />
+            <Route path="roadmap" element={tmath ? <MathAdminPage only="roadmap" key="mr" /> : <RoadmapEditor />} />
             <Route path="settings" element={<Settings />} />
             <Route path="admins" element={<Admins />} />
-            <Route path="question-bank/manage" element={<QbankAdmin />} />
-            <Route path="full-mocks" element={<FullMockAdmin />} />
+            <Route path="question-bank/manage" element={tmath ? <MathAdminPage only="questions" key="mq" /> : <QbankAdmin />} />
+            <Route path="full-mocks" element={tmath ? <MathMockAdmin /> : <FullMockAdmin />} />
             <Route path="consultations" element={<ConsultationsAdmin />} />
             <Route path="leaderboard" element={<Leaderboard />} />
             <Route path="finance" element={<Finance />} />
@@ -221,7 +227,7 @@ export default function App() {
             <Route path="analytics" element={math ? <MathResults /> : <Analytics />} />
             <Route path="leaderboard" element={math ? <MathLeaderboard /> : <Leaderboard />} />
             <Route path="assignments" element={<Assignments />} />
-            <Route path="full-mocks" element={math ? <ComingSoon icon={IconDoc} title="Full Math mocks are coming" text="Full-length SAT Math modules with the Desmos calculator are being prepared. Until then, practise by topic and follow the Math roadmap." /> : <FullMocks />} />
+            <Route path="full-mocks" element={math ? <MathMocks /> : <FullMocks />} />
             <Route path="consultations" element={<Consultations />} />
             <Route path="full-mock/result/:aid" element={<FullMockResult />} />
             <Route path="saved" element={math ? home : <Saved />} />

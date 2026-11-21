@@ -6,7 +6,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth, useTheme } from '../context.jsx';
 import { Avatar, Spinner } from './ui.jsx';
 import SupportChat from './ChatLater.jsx';
-import { SubjectSwitch, subjectOf } from '../subject.jsx';
+import { SubjectSwitch, panelSubject, subjectOf } from '../subject.jsx';
 import {
   IconBookmark, IconBriefcase, IconChats, IconChart, IconDashboard, IconLayers, IconLogout, IconMenu, IconMoon,
   IconQuiz, IconRoad, IconSun, IconUsers, IconCrown, IconKey, IconSettings, IconTarget, IconBolt, IconGlobe, IconSend, IconBook, IconGame, IconMore, Logo, IconTrophy, IconDoc, IconLive, IconConsult, IconVolume, IconMute, IconWallet, IconTask, IconFlag, IconMath } from './icons.jsx';
@@ -27,7 +27,7 @@ const STUDENT_NAV = [
   { to: '/consultations', label: 'Consultations', icon: IconConsult, c: '#0E9F6E' },
   { to: '/live', label: 'Live lessons', icon: IconLive, c: '#E2553D' },
   { to: '/saved', label: 'Saved', icon: IconBookmark, c: '#E0569B' },
-  { to: '/subscribe', label: 'Plans', icon: IconCrown, c: '#E8A93C' },
+  { to: '/subscribe', label: 'Plans & wallet', icon: IconCrown, c: '#E8A93C' },
 ];
 // phones: the most used places sit in a bottom tab bar; "More" opens the full menu
 const STUDENT_TABS = [
@@ -75,6 +75,13 @@ const MASTER_NAV = [
   { to: '/admins', label: 'Admins', icon: IconKey, c: '#5B6380' },
   { to: '/settings', label: 'Settings', icon: IconSettings, c: '#5B6380' },
 ];
+// the teacher panel follows the subject switch: English content or Math content, shared pages in both
+const MASTER_ENGLISH_ONLY = new Set(['/math']);
+const MASTER_MATH_ONLY_HIDE = new Set(['/vocab', '/game', '/quality', '/live', '/math']);
+const MATH_LABEL = { '/roadmap': 'Math Roadmap', '/question-bank/manage': 'Math Question Bank', '/full-mocks': 'Math Full Mocks', '/quizzes': 'Quizzes' };
+const masterNav = (user) => (panelSubject(user) === 'math'
+  ? MASTER_NAV.filter((n) => !MASTER_MATH_ONLY_HIDE.has(n.to)).map((n) => (MATH_LABEL[n.to] ? { ...n, label: MATH_LABEL[n.to] } : n))
+  : MASTER_NAV.filter((n) => !MASTER_ENGLISH_ONLY.has(n.to)));
 // admin accounts see only the sections the teacher gave them (admins.js on the server checks the same)
 const SECTION = {
   '/students': 'students', '/groups': 'students', '/assignments': 'students', '/consultations': 'students', '/live': 'students', '/leaderboard': 'students', '/progress': 'students',
@@ -108,7 +115,7 @@ export default function Layout() {
   const on = (n) => !!n.also?.some((pfx) => loc.pathname.startsWith(pfx));
   useEffect(() => { setOpen(false); window.scrollTo({ top: 0 }); }, [loc.pathname]);
   const math = subjectOf(user) === 'math';
-  const nav = user.role === 'master' ? MASTER_NAV.filter((n) => canSee(user, n.to)) : (math ? MATH_NAV : STUDENT_NAV).filter((n) => !n.needsGroup || user.groups?.length);
+  const nav = user.role === 'master' ? masterNav(user).filter((n) => canSee(user, n.to)) : (math ? MATH_NAV : STUDENT_NAV).filter((n) => !n.needsGroup || user.groups?.length);
   // open assignments (new / in progress / retake) as a badge in the menu
   const [todo, setTodo] = useState(0);
   useEffect(() => { if (user.role === 'student') api.get('/assignments').then((d) => setTodo(d.open || 0)).catch(() => {}); }, [user.role, loc.pathname]);
@@ -125,10 +132,10 @@ export default function Layout() {
       <aside className={`sidebar ${open ? 'open' : ''}`}>
         <NavLink to="/" className="brand-tile" aria-label="SAT Ustoz — home">
           <Logo size={30} tone="white" />
-          <span className="brand-sub">{user.role === 'master' ? (staffPerms(user) ? 'Admin panel' : 'Teacher panel') : math ? 'SAT Math' : 'SAT Reading & Writing'}</span>
+          <span className="brand-sub">{user.role === 'master' ? `${staffPerms(user) ? 'Admin panel' : 'Teacher panel'} · ${panelSubject(user) === 'math' ? 'Math' : 'English'}` : math ? 'SAT Math' : 'SAT Reading & Writing'}</span>
           <span className="brand-track" aria-hidden="true"><b>200</b><i /><b className="end">800</b></span>
         </NavLink>
-        {user.role === 'student' && <div className="side-subj"><SubjectSwitch /></div>}
+        <div className="side-subj"><SubjectSwitch /></div>
         <nav className="nav" aria-label={"Main menu"}>
           {nav.map((n) => (
             <NavLink key={n.to} to={n.to} end={n.end} style={{ '--c': n.c || '#2A55E5' }} className={({ isActive }) => (isActive || on(n) ? 'active' : '')}>{({ isActive }) => (<><span className="nav-ic"><n.icon width={19} height={19} weight={isActive || on(n) ? 'fill' : 'duotone'} /></span>{n.label}

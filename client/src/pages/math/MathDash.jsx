@@ -1,10 +1,10 @@
+import { UpgradeNudge } from '../../components/Growth.jsx';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../../api.js';
 import { useAuth } from '../../context.jsx';
 import { Avatar, Card, Empty, Gate, Segmented, useAsync } from '../../components/ui.jsx';
 import { IconArrow, IconFlame, IconPlay, IconRoad, IconTarget, IconTrophy, IconChart, IconBolt, IconTask } from '../../components/icons.jsx';
-import { BuyMath } from '../../subject.jsx';
 import { UsageChip } from '../../usage.jsx';
 import MathText from './MathText.jsx';
 
@@ -39,8 +39,8 @@ export default function MathDash() {
                 <span className="md-streak"><IconFlame width={15} height={15} /> {me.streak} day{me.streak === 1 ? '' : 's'}</span>
               </div>
             </section>
+            <UpgradeNudge user={user} subject="math" answered={me.done} />
 
-            {!m.sub_active && <BuyMath title="You are on the free Math trial" text={`${m.free_lessons ?? 2} roadmap ${m.free_lessons === 1 ? 'lesson' : 'lessons'} and ${m.tier?.q_day || 10} questions a day are free. A Math plan opens everything.`} />}
 
             <div className="md-grid">
               <Link to="/roadmap" className="md-tile" style={{ '--mc': '#F28B4E' }}>

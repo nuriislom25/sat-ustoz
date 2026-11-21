@@ -8,6 +8,9 @@ import { Link } from 'react-router-dom';
 /** The subject a student is working in: 'english' or 'math'. Teachers always see everything. */
 export const subjectOf = (user) => (user?.role === 'student' && user.subject === 'math' ? 'math' : 'english');
 export const useSubject = () => subjectOf(useAuth().user);
+/** Teacher panel: which subject's content the teacher is managing (kept on the account like a student's). */
+export const panelSubject = (user) => (user?.subject === 'math' ? 'math' : 'english');
+const current = (user) => (user?.role === 'master' ? panelSubject(user) : subjectOf(user));
 
 // pages that exist only in one subject: switching sends the student to the matching place
 const ENGLISH_ONLY = ['/vocab', '/game', '/live', '/saved', '/lesson', '/placement'];
@@ -21,12 +24,13 @@ export function useSwitchSubject() {
   const loc = useLocation();
   const [busy, setBusy] = useState(false);
   const go = async (subject) => {
-    if (busy || subjectOf(user) === subject) return;
+    if (busy || current(user) === subject) return;
     setBusy(true);
     try {
       await api.put('/me/subject', { subject });
       await refresh();
       const p = loc.pathname;
+      if (user.role === 'master') { const p0 = loc.pathname; if (/^\/(vocab|game|quality|math)(\/|$)/.test(p0) || /^\/(quizzes|roadmap)\/./.test(p0)) nav('/'); setBusy(false); return; }
       const away = (subject === 'math' ? ENGLISH_ONLY : MATH_ONLY).some((x) => p === x || p.startsWith(`${x}/`)) || /^\/roadmap\/lesson/.test(p) || /^\/(quiz|result|mock)\//.test(p);
       if (away) nav('/');
     } catch (e) { toast(e.message, 'err'); }
@@ -38,8 +42,8 @@ export function useSwitchSubject() {
 export function SubjectSwitch({ compact = false }) {
   const { user } = useAuth();
   const [go, busy] = useSwitchSubject();
-  if (user?.role !== 'student') return null;
-  const s = subjectOf(user);
+  if (user?.role !== 'student' && user?.role !== 'master') return null;
+  const s = current(user);
   return (
     <div className={`subj ${compact ? 'compact' : ''} ${s}`} role="radiogroup" aria-label="Subject" aria-busy={busy}>
       <span className="subj-thumb" aria-hidden="true" />

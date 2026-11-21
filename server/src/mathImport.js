@@ -28,6 +28,7 @@ const COLS = {
   explanation: ['explanation', 'rationale', 'izoh', 'tushuntirish', 'solution'],
   tip: ['tip', 'hint', 'maslahat', 'ustoztip'],
   image: ['image', 'picture', 'graph', 'figure', 'rasm', 'grafik', 'imageurl'],
+  module: ['module', 'modul', 'part', 'section2', 'mod'],
 };
 const pick = (row, key) => {
   for (const [k, v] of Object.entries(row)) if (COLS[key].includes(norm(k)) && String(v ?? '').trim() !== '') return String(v).trim();
@@ -42,7 +43,7 @@ const imgToken = (u) => {
 export const textKey = (s) => norm(s).slice(0, 400);
 
 /** Rows of the file → clean questions + per-row problems (row numbers as in Excel, header = row 1). */
-export function readMathSheet(buffer) {
+export function readMathSheet(buffer, { withModule = false } = {}) {
   const wb = XLSX.read(buffer, { type: 'buffer' });
   const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
   const domains = starter().domains;
@@ -80,7 +81,7 @@ export function readMathSheet(buffer) {
     }
     const lvl = norm(pick(r, 'difficulty'));
     ok.push({
-      line, domain: domain.id, skill: skill.id, kind, prompt: prompt.slice(0, 4000), options: JSON.stringify(options), answer,
+      line, ...(withModule ? { module: pick(r, 'module') || '1' } : {}), domain: domain.id, skill: skill.id, kind, prompt: prompt.slice(0, 4000), options: JSON.stringify(options), answer,
       difficulty: ['easy', 'medium', 'hard'].includes(lvl) ? lvl : lvl === 'oson' ? 'easy' : lvl === 'qiyin' ? 'hard' : 'medium',
       explanation: pick(r, 'explanation').slice(0, 4000), tip: pick(r, 'tip').slice(0, 1000),
     });
@@ -105,13 +106,14 @@ export async function importMath(buffer, userId) {
 }
 
 /** An example file with every column filled in. */
-export function mathTemplate() {
+export function mathTemplate({ withModule = false } = {}) {
   const rows = [
     { domain: 'Algebra', skill: 'Linear equations in one variable', difficulty: 'easy', question: 'If $3x + 7 = 22$, what is the value of $x$?', A: '3', B: '5', C: '7', D: '15', answer: 'B', explanation: 'Subtract 7: $3x = 15$, so $x = 5$.', tip: 'Undo the operations in reverse order.', image: '' },
     { domain: 'Problem-Solving and Data Analysis', skill: 'Percentages', difficulty: 'medium', question: 'What is 15% of 240?', A: '', B: '', C: '', D: '', answer: '36', explanation: '$0.15 \\times 240 = 36$.', tip: '', image: '' },
     { domain: 'Geometry and Trigonometry', skill: 'Circles', difficulty: 'hard', question: 'A circle has the equation $x^2 + y^2 - 6x + 4y = 12$. What is its radius?', A: '', B: '', C: '', D: '', answer: '5', explanation: 'Complete the squares: $(x-3)^2 + (y+2)^2 = 25$, so $r = 5$.', tip: '', image: '' },
   ];
-  const ws = XLSX.utils.json_to_sheet(rows);
+  if (withModule) rows.forEach((r, i) => { r.module = ['1', '2h', '2e'][i % 3]; });
+  const ws = XLSX.utils.json_to_sheet(withModule ? rows.map(({ module, ...r }) => ({ module, ...r })) : rows);
   ws['!cols'] = [{ wch: 30 }, { wch: 34 }, { wch: 10 }, { wch: 60 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 50 }, { wch: 30 }, { wch: 30 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Math questions');
@@ -124,6 +126,7 @@ export function mathTemplate() {
     ['A–D', 'Four answer choices. Leave all four empty when students type the answer.'],
     ['answer', 'A, B, C or D; for a typed answer the value — several accepted forms separated with ; (3/4; 0.75)'],
     ['explanation, tip', 'Optional, shown after the answer'],
+    ...(withModule ? [['module', 'Full mock only: 1 = Module 1, 2 = one Module 2 for everyone, 2h = harder Module 2, 2e = easier Module 2 (22 questions each)']] : []),
     ['image', 'Optional: a picture link (https://…) — or add the picture later in the editor'],
   ]);
   help['!cols'] = [{ wch: 34 }, { wch: 110 }];

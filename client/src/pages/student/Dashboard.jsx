@@ -6,8 +6,7 @@ import { api, daysUntil, fmtDate } from '../../api.js';
 import { useAuth } from '../../context.jsx';
 import { satScoreFromCount } from '../../../../server/src/scoring.js';
 import { Card, CountUp, Gate, LineChart, Ring, pctTone, useAsync } from '../../components/ui.jsx';
-import StudentCard from '../../components/StudentCard.jsx';
-import { FocusTopics, InviteCard } from '../../components/Growth.jsx';
+import { FocusTopics, InviteCard, UpgradeNudge } from '../../components/Growth.jsx';
 import PathTrack from '../../components/PathTrack.jsx';
 import { PaywallBanner } from './Quizzes.jsx';
 import { IconArrow, IconBolt, IconCheck, IconClock, IconQuiz, IconTrophy, IconTask } from '../../components/icons.jsx';
@@ -42,6 +41,7 @@ export default function Dashboard() {
 
                 {goal && !goal.empty && <div className="d-goal"><DailyGoal g={goal} /></div>}
                 {!user.access?.can_practice && <div className="d-pay"><PaywallBanner /></div>}
+                <div className="d-up"><UpgradeNudge user={user} answered={all.answered} /></div>
                 <FirstSteps steps={[
                   { done: !!pl.results.length, to: '/placement', title: 'Find your level', text: 'A short placement test (about 40 min) shows your SAT estimate and what to study first.' },
                   { done: all.answered > 0, to: '/roadmap', title: 'Start the roadmap', text: 'Lesson 1 explains how the Digital SAT works. Each step opens the next.' },
@@ -89,7 +89,6 @@ export default function Dashboard() {
               </div>
 
               <div className="dash-col dash-side">
-                <div className="d-card"><StudentCard user={user} compact /></div>
                 <Card className="next-card d-next">
                   <div className="stack sm" style={{ position: 'relative' }}>
                     <span className="chip">{next ? (next.status === 'in_progress' ? "Continue" : next.status === 'new' ? "New quiz" : "Retake") : 'Take a quiz'}</span>
