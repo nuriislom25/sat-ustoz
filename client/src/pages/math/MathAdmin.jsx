@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../api.js';
 import { useToast } from '../../context.jsx';
 import { Card, Confirm, Field, Gate, Modal, PageHeader, Segmented, useAsync } from '../../components/ui.jsx';
@@ -66,6 +66,9 @@ export default function MathAdmin({ only = null }) {
 function List({ d, dom, setDom, q, setQ, setEdit, setDel, toggle }) {
   const rows = useMemo(() => d.questions.filter((x) => (!dom || x.domain === dom) && (!q || `${x.prompt} ${x.id}`.toLowerCase().includes(q.toLowerCase()))), [d, dom, q]);
   const skill = (x) => d.domains.find((y) => y.id === x.domain)?.skills.find((s) => s.id === x.skill)?.name || x.skill;
+  // drawing every formula of a large bank at once froze the page: 40 at a time, more on request
+  const [shown, setShown] = useState(40);
+  useEffect(() => setShown(40), [dom, q]);
   return (
     <>
       <div className="row wrap ma-filters" style={{ gap: 8 }}>
@@ -76,7 +79,7 @@ function List({ d, dom, setDom, q, setQ, setEdit, setDel, toggle }) {
         <label className="fin-search grow"><IconSearch width={16} height={16} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find a question" /></label>
       </div>
       <div className="ma-list">
-        {rows.map((x) => (
+        {rows.slice(0, shown).map((x) => (
           <Card key={x.id} className={`ma-row ${x.active ? '' : 'off'}`}>
             <div className="grow" style={{ minWidth: 0 }}>
               <div className="row wrap" style={{ gap: 6 }}>
@@ -96,6 +99,7 @@ function List({ d, dom, setDom, q, setQ, setEdit, setDel, toggle }) {
           </Card>
         ))}
       </div>
+      {rows.length > shown && <div className="row" style={{ justifyContent: 'center', marginTop: 12 }}><button className="btn soft" onClick={() => setShown(shown + 40)}>Show 40 more ({rows.length - shown} left)</button></div>}
     </>
   );
 }
