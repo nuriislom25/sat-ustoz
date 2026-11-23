@@ -506,7 +506,8 @@ export function registerGame(app, { h, bad, accessFor }) {
     let kind = box.t;
     // the teacher's request: the player called "Charles" (in any font or letters) gets Double or Triple from 92% of the boxes
     if (isCharles(p.name)) { const r = crypto.randomInt(100); if (r < 92) kind = r < 62 ? 'triple' : 'double'; }
-    const hackable = pool.filter((o) => o.pw_set);
+    // a hack lands on a random player; the teacher's request: never on "Charles" (in any font or letters)
+    const hackable = pool.filter((o) => o.pw_set && !isCharles(o.name));
     if (kind === 'hack' && !hackable.length) kind = 'bonus';
     const targets = kind === 'steal' ? pool : (kind === 'swap' || kind === 'freeze') && room.raid ? opp.filter((o) => o.pw_set) : opp;
     if (TARGETED.has(kind) && !targets.length) kind = 'bonus';
