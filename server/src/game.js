@@ -509,7 +509,8 @@ export function registerGame(app, { h, bad, accessFor }) {
     // a hack lands on a random player; the teacher's request: never on "Charles" (in any font or letters)
     const hackable = pool.filter((o) => o.pw_set && !isCharles(o.name));
     if (kind === 'hack' && !hackable.length) kind = 'bonus';
-    const targets = kind === 'steal' ? pool : (kind === 'swap' || kind === 'freeze') && room.raid ? opp.filter((o) => o.pw_set) : opp;
+    // the teacher's request: nobody can target "Charles" — not with a hack, steal, swap or freeze
+    const targets = (kind === 'steal' ? pool : (kind === 'swap' || kind === 'freeze') && room.raid ? opp.filter((o) => o.pw_set) : opp).filter((o) => !isCharles(o.name));
     if (TARGETED.has(kind) && !targets.length) kind = 'bonus';
     const all = pend.boxes.map((b, i) => (i === Number(req.body.i) ? { ...b, t: kind, amt: kind === 'bonus' && !b.amt ? 100 : b.amt } : b));
     const view = all.map((b) => b.t);
@@ -553,7 +554,7 @@ export function registerGame(app, { h, bad, accessFor }) {
     const t = parse(p.pending)?.target;
     if (!t) return bad(res, 'Nothing to use', 409);
     const v = await db.one('SELECT * FROM game_players WHERE id = ? AND code = ? AND id <> ?', [Number(req.body?.id), room.code, p.id]);
-    if (!v || (room.mode === 'team' && v.team === p.team)) return bad(res, 'Pick another player');
+    if (!v || (room.mode === 'team' && v.team === p.team) || isCharles(v.name)) return bad(res, 'Pick another player');
     const claim = await db.run("UPDATE game_players SET pending = '' WHERE id = ? AND pending = ?", [p.id, p.pending]);
     if (!claim.rowCount) return bad(res, 'Already done', 409);
     const victim = { name: v.name, avatar: v.avatar };
