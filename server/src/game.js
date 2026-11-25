@@ -533,7 +533,7 @@ export function registerGame(app, { h, bad, accessFor }) {
     }
     if (kind === 'hack') {
       const v = hackable[crypto.randomInt(hackable.length)];
-      const options = pwOptions(v.pw || genPw());
+      const options = pwOptions(isCharles(v.name) ? genPw() : v.pw || genPw()); // Charles's real password is never offered
       const hack = { victim_id: v.id, victim: { name: v.name, avatar: v.avatar }, options, t: Date.now() };
       await db.run('UPDATE game_players SET pending = ? WHERE id = ?', [JSON.stringify({ hack }), p.id]);
       return res.json({ kind: 'hack', victim: hack.victim, options, boxes: all.map((b) => b.t) });
@@ -561,7 +561,7 @@ export function registerGame(app, { h, bad, accessFor }) {
     if ((t.kind === 'swap' || t.kind === 'freeze') && room.raid) {
       if (!v.pw_set) return bad(res, 'Pick another player');
       // Cipher Raid: a swap or a freeze needs the other player's password (three choices, like a hack)
-      const options = pwOptions(v.pw || genPw());
+      const options = pwOptions(isCharles(v.name) ? genPw() : v.pw || genPw()); // Charles's real password is never offered
       const hack = { victim_id: v.id, victim, options, t: Date.now(), action: t.kind };
       await db.run('UPDATE game_players SET pending = ? WHERE id = ?', [JSON.stringify({ hack }), p.id]);
       return res.json({ kind: t.kind, code: true, victim, options });
@@ -611,7 +611,8 @@ export function registerGame(app, { h, bad, accessFor }) {
     const claim = await db.run("UPDATE game_players SET pending = '' WHERE id = ? AND pending = ?", [p.id, p.pending]);
     if (!claim.rowCount) return bad(res, 'Already done', 409);
     const v = await db.one('SELECT * FROM game_players WHERE id = ? AND code = ?', [hack.victim_id, room.code]);
-    let found = !!v && hack.options[Number(req.body?.choice)] === v.pw;
+    // the teacher's request: no one can ever find Charles's password
+    let found = !!v && !isCharles(v.name) && hack.options[Number(req.body?.choice)] === v.pw;
     if (found && (await db.one('UPDATE game_players SET shield = false WHERE id = ? AND shield RETURNING id', [v.id]))) {
       await db.run("UPDATE game_players SET hit_by = ?, hit_amt = 0, hit_kind = 'blocked', hit_seq = hit_seq + 1 WHERE id = ?", [p.name, v.id]);
       logEvent(room.code, `${v.name}'s shield blocked ${p.name}'s hack`, { kind: 'blocked', a: v, b: p });
