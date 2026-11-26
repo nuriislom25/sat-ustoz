@@ -387,11 +387,15 @@ for (const k of ['all', 'one', 'run', 'exec']) {
   const f = db[k];
   db[k] = (sql, ...rest) => { if (/\b(insert|update|delete)\b[\s\S]*\bsettings\b/i.test(String(sql))) settingsCache = null; return f(sql, ...rest); };
 }
+/** SAT Ustoz is free for everyone (ihsan): no plans, prices, wallet or limits. Payment records stay in the database, unused. */
+export const FREE_PLATFORM = true;
 export async function getSettings() {
   if (settingsCache && Date.now() - settingsAt < SETTINGS_TTL) return { ...settingsCache };
   const rows = await db.all('SELECT key, value FROM settings');
   const out = { ...DEFAULT_SETTINGS };
   for (const r of rows) if (!r.key.startsWith('_')) out[r.key] = r.value; // '_' keys are internal (secret, content hash)
+  // free mode can never be switched off, and nothing has a price
+  if (FREE_PLATFORM) Object.assign(out, { require_subscription: 'false', fm_extra_price: '0', quiz_extra_price: '0', lesson_unlock_price: '0' });
   settingsCache = out; settingsAt = Date.now();
   return { ...out };
 }

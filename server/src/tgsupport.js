@@ -59,7 +59,8 @@ export const MENU = {
   faq: "❓ Ko'p so'raladigan savollar",
 };
 export const menuKeyboard = () => ({
-  keyboard: [[{ text: MENU.plans }, { text: MENU.wallet }], [{ text: MENU.mine }, { text: MENU.faq }], [{ text: MENU.question }, { text: MENU.idea }], [{ text: MENU.complaint }]],
+  // SAT Ustoz is free: no plan, wallet or subscription buttons
+  keyboard: [[{ text: MENU.question }, { text: MENU.idea }], [{ text: MENU.complaint }, { text: MENU.faq }]],
   resize_keyboard: true, is_persistent: true,
 });
 

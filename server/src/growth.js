@@ -11,7 +11,7 @@
  * on their wallets — once per friend (ledger refs ref:<id> / ref-friend:<id>).
  */
 import crypto from 'node:crypto';
-import { db, getSettings } from './db.js';
+import { db, getSettings, FREE_PLATFORM } from './db.js';
 import { moveBalance } from './tiers.js';
 import { DOMAINS } from './qbank.js';
 import { starter } from './math.js';
@@ -158,6 +158,7 @@ export function registerGrowth(app, { h, bad, requireMaster, requireStudent }) {
 
   // ---- student: preview a code before paying ----
   app.post('/api/promo/check', requireStudent, h(async (req, res) => {
+    if (FREE_PLATFORM) return bad(res, 'SAT Ustoz is free. Everything is already open for you.', 410, { code: 'free' });
     const { readTiers, bundlePct, subjectOf, asSubject } = await import('./tiers.js');
     const { subActive } = await import('./auth.js');
     const s = await getSettings();

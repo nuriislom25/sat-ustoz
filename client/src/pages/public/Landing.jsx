@@ -1,25 +1,19 @@
-import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getConfig } from '../../config.js';
 import { useAuth } from '../../context.jsx';
 import { Spinner } from '../../components/ui.jsx';
 import { IconArrow, IconCheck } from '../../components/icons.jsx';
 import { useSite } from './site.jsx';
 import ScoreCalc from './ScoreCalc.jsx';
 import { Trustpilot } from '../../components/Consent.jsx';
-import { tierPerks } from '../student/Subscribe.jsx';
 import './public.css';
 
 // big counts read better rounded down: 11 716 → "11 700+", 948 → "940+"
 const nice = (n) => { n = Number(n || 0); const r = n >= 1000 ? 100 : n >= 100 ? 10 : 1; return `${(Math.floor(n / r) * r).toLocaleString('en-US').replace(/,/g, ' ')}+`; };
-const money = (n) => Number(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
 
 /** Home page for visitors: no sign-in wall — a free practice test is one click away. */
 export default function Landing() {
   const { site, err } = useSite();
   const { user } = useAuth();
-  const [cfg, setCfg] = useState(null);
-  useEffect(() => { getConfig().then(setCfg); }, []);
   if (err) return <div className="pub-wrap"><p className="error-box">{err.message}</p></div>;
   if (!site) return <div className="pub-hero" style={{ display: 'grid', placeItems: 'center', minHeight: '70vh' }}><Spinner /></div>;
   const h = site.home;
@@ -103,8 +97,8 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ---------- pricing ---------- */}
-      <Pricing cfg={cfg} trial={trial} />
+      {/* ---------- free for everyone ---------- */}
+      <FreeForAll c={c} all={all} trial={trial} signedIn={!!user} />
 
       {/* ---------- final CTA ---------- */}
       <section className="pub-final">
@@ -119,59 +113,26 @@ export default function Landing() {
   );
 }
 
-const PP_COLORS = ['#22B07D', '#3B82F6', '#F07A55', '#F5B82E', '#8E5CF7'];
-
-/** Plans: free + 4 paid plans. On phones the cards are a swipeable slider with dots. */
-function Pricing({ cfg, trial }) {
-  const [at, setAt] = useState(0);
-  const [hold, setHold] = useState(false);
-  const rail = useRef(null);
-  const count = (cfg?.tiers?.length || 0) + 1;
-  // auto-play: one card every 3.5 s, back to the start at the end; pauses while the visitor hovers or touches
-  useEffect(() => {
-    // phones: no auto-play (it moves the cards under the visitor's thumb)
-    if (!cfg?.tiers || hold || window.matchMedia('(prefers-reduced-motion: reduce), (max-width: 760px)').matches) return undefined;
-    const t = setInterval(() => {
-      const el = rail.current; if (!el) return;
-      const end = el.scrollLeft + el.clientWidth >= el.scrollWidth - 8;
-      if (end) el.scrollTo({ left: 0, behavior: 'smooth' });
-      else { const c = el.children[Math.min(count - 1, at + 1)]; if (c) el.scrollTo({ left: c.offsetLeft - el.offsetLeft, behavior: 'smooth' }); }
-    }, 3500);
-    return () => clearInterval(t);
-  }, [cfg, hold, at, count]);
-  if (!cfg?.tiers) return null;
-  const cur = cfg.prices?.currency || 'UZS';
-  const cards = [
-    { id: 'free', name: 'Free', price: 0, perks: [[true, `${cfg.free.q_day} questions a day across all tests`], [true, 'Free practice tests'], [true, `${cfg.free.fm_week} full mock a week`], [true, 'First roadmap lessons, then one a week']] },
-    ...cfg.tiers.map((t) => ({ ...t, perks: tierPerks(t).filter(([on]) => on) })),
+/** SAT Ustoz is free for everyone: what is open, in one card (no plans, prices or wallet). */
+function FreeForAll({ c, all, trial, signedIn }) {
+  const open = [
+    'Every roadmap lesson and video',
+    `The whole Question Bank: ${nice(all)} SAT questions`,
+    'Full mocks in the Bluebook format, as many as you like',
+    'Quizzes, Word Vault and Word Arena',
+    'Score reports and your mistakes to review',
+    'Questions to the teacher and consultations on request',
   ];
-  const onScroll = () => {
-    const el = rail.current; if (!el) return;
-    const w = el.firstElementChild?.getBoundingClientRect().width || 1;
-    setAt(Math.min(count - 1, Math.round(el.scrollLeft / (w + 16))));
-  };
-  const go = (i) => { const el = rail.current; const c = el?.children[i]; if (c) el.scrollTo({ left: c.offsetLeft - el.offsetLeft, behavior: 'smooth' }); };
   return (
-    <section className="pub-wrap" id="pricing">
-      <h2 className="pub-h2">Simple pricing</h2>
-      <div className="pp-wrap" onMouseEnter={() => setHold(true)} onMouseLeave={() => setHold(false)} onTouchStart={() => setHold(true)} onTouchEnd={() => setTimeout(() => setHold(false), 4000)}>
-      <button className="pp-arrow l" aria-label="Previous plan" onClick={() => go(Math.max(0, at - 1))}>‹</button>
-      <div className="pub-prices tiers5" ref={rail} onScroll={onScroll}>
-        {cards.map((t, i) => (
-          <div key={t.id} className={`pub-price pp-c ${i === 3 ? 'hot' : ''}`} style={{ '--tc': PP_COLORS[i % PP_COLORS.length], '--tilt': `${i % 2 ? 3 : -3}deg` }}>
-            {i === 3 && <span className="ribbon">Most popular</span>}
-            <small className="pp-tag">{i === 0 ? 'Start' : `Plan ${i}`}</small>
-            <h3 className="pp-name">{t.name}</h3>
-            <b>{t.price ? money(t.price) : '0'}</b><span>{t.price ? `${cur} / ${t.live ? '12 live lessons' : 'month'}` : 'forever'}</span>
-            <ul>{t.perks.map(([, x]) => <li key={x}><IconCheck /> {x}</li>)}</ul>
-            <Link className={`btn ${i === 3 ? 'sun' : 'ghost'} lg block`} to={i === 0 ? '/practice' : trial}>{i === 0 ? 'Take a free test' : 'Choose'}</Link>
-          </div>
-        ))}
+    <section className="pub-wrap" id="free">
+      <div className="pub-free">
+        <div className="pub-free-h">
+          <h2 className="pub-h2">Free for everyone</h2>
+          <p>Everything on SAT Ustoz is open to every student. No plans, no payments and no daily limits.</p>
+          <Link className="btn pill-cta" to={trial}>{signedIn ? 'Open my dashboard' : 'Create a free account'}</Link>
+        </div>
+        <ul className="pub-free-list">{open.map((x) => <li key={x}><IconCheck /> {x}</li>)}</ul>
       </div>
-      <button className="pp-arrow r" aria-label="Next plan" onClick={() => go(Math.min(count - 1, at + 1))}>›</button>
-      </div>
-      <div className="pp-dots" aria-hidden="true">{cards.map((c, i) => <button key={c.id} className={at === i ? 'on' : ''} onClick={() => go(i)} tabIndex={-1} />)}</div>
-      <p className="muted center pp-note">Swipe to see every plan · extra full mock {money(cfg.fm_extra_price)} {cur} from your wallet</p>
     </section>
   );
 }

@@ -29,12 +29,11 @@ export default function MathMocks() {
         <>
           <div className={`fm-quota ${q.left ? '' : 'out'}`}>
             <div>
-              <small>{q.math_plan ? 'Math plan' : 'Free Math'} · this week</small>
+              <small>Math full mocks · this week</small>
               <b>{q.unlimited ? 'Unlimited' : `${q.left} of ${q.limit} left`}</b>
-              <span>{q.unlimited ? 'Your plan has no weekly limit.' : q.left ? 'A mock counts when you start it.' : `New mocks open ${fmtDate(q.resets_at)} (Monday). Extra mock: ${fmtMoney(q.extra_price, 'UZS')} from your wallet.`}</span>
+              <span>{q.unlimited ? 'Free for everyone, with no weekly limit.' : q.left ? 'A mock counts when you start it.' : `New mocks open ${fmtDate(q.resets_at)} (Monday).`}</span>
             </div>
             {!q.unlimited && <div className="fm-dots" aria-hidden="true">{Array.from({ length: Math.min(q.limit, 7) }, (_, i) => <i key={i} className={i < q.used ? 'used' : ''} />)}</div>}
-            {!q.math_plan && <Link className="btn sun" to="/subscribe?subject=math"><IconCrown width={16} height={16} /> More mocks with a Math plan</Link>}
           </div>
           <div className="fm-list stagger">
             {mocks.map((m) => {

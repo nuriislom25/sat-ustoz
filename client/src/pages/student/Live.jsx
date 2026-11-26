@@ -20,7 +20,7 @@ export default function Live() {
   const st = useAsync(() => api.get('/live/slots'), []);
   return (
     <div className="page">
-      <PageHeader title="Live lessons" sub="One-on-one with the teacher, three times a week at your own fixed time. 12 lessons in 4 weeks, with everything in Ultra." />
+      <PageHeader title="Live lessons" sub={user.role === 'master' ? 'Students whose booked live period is still running. New bookings are closed.' : 'Your booked one-on-one lessons with the teacher.'} />
       <Gate state={st}>{(d) => (user.role === 'master' ? <Board d={d} reload={st.reload} /> : <Student d={d} reload={st.reload} />)}</Gate>
     </div>
   );
@@ -28,102 +28,21 @@ export default function Live() {
 
 const STATE = { free: ['Free', 'good'], taken: ['Taken', ''], mine: ['Your time', 'primary'], mine_next: ['Booked', 'primary'], closed: ['Closed', ''] };
 
-function Student({ d, reload }) {
-  const { refresh } = useAuth();
-  const toast = useToast();
-  const [ask, setAsk] = useState(null);
-  const [cancel, setCancel] = useState(null);
-  const [busy, setBusy] = useState('');
-  const mine = d.mine || [];
-  const now = mine.find((b) => b.started);
-  const next = mine.filter((b) => !b.started);
-  const offer = d.slots.find((s) => s.action === 'offer');
-  const queue = async (s, join) => {
-    setBusy(s.id);
-    try {
-      if (join) { await api.post('/live/queue', { slot: s.id }); toast('You are on the waitlist. The Telegram bot tells you when the time frees up.'); }
-      else { await api.del(`/live/queue/${s.id}`); toast('You left the waitlist'); }
-      reload();
-    } catch (e) { toast(e.message, 'bad'); } finally { setBusy(''); }
-  };
-  const byGroup = d.groups.map((g) => ({ ...g, slots: d.slots.filter((s) => s.group === g.id) }));
-
+/**
+ * SAT Ustoz is free and live lessons are no longer offered: a student whose booked period is still running sees
+ * their time and the next lessons until it ends. Nothing can be booked, renewed or paid.
+ */
+function Student({ d }) {
+  const mine = (d.mine || []).filter((b) => b.started);
   return (
     <>
-      {offer && (
-        <div className="lv-offer">
-          <div><b>Your turn: {offer.days}, {offer.from}–{offer.to}</b><span>The time is yours if you pay by {when(offer.offer_until)}. After that it goes to the next student.</span></div>
-          <button className="btn sun" onClick={() => setAsk(offer)}>Book it now</button>
-        </div>
-      )}
-
-      <div className="lv-top">
-        {now ? <MyTime b={now} slot={d.slots.find((s) => s.id === now.slot)} onRenew={(s) => setAsk(s)} /> : (
-          <Card className="lv-intro">
-            <span className="item-ic lv-ic"><IconLive /></span>
-            <div>
-              <h2>Pick your time</h2>
-              <p className="muted">Choose one of six times below. It stays yours: the same days and hour every week, only you and the teacher.</p>
-            </div>
-          </Card>
-        )}
-        <Card className="lv-price">
-          <small className="muted">{d.plan} · 12 lessons</small>
-          <b>{fmtMoney(d.price, d.currency)}</b>
-          <span className="muted">Wallet: {fmtMoney(d.balance, d.currency)}</span>
-          <Link to="/subscribe#pay" className="lv-link">Top up</Link>
+      {mine.length ? mine.map((b) => <MyTime key={b.id} b={b} slot={null} />) : (
+        <Card className="lv-intro">
+          <span className="item-ic lv-ic"><IconLive /></span>
+          <div><h2>Live lessons have ended</h2><p className="muted">New live lessons are no longer offered. Everything else on SAT Ustoz is free and open to you.</p></div>
         </Card>
-      </div>
-
-      {next.map((b) => (
-        <div key={b.id} className="lv-note">
-          <span><b>Booked:</b> {b.days} {b.from}–{b.to}, from {wday(b.starts_on)} to {day(b.last)}.</span>
-          <button className="btn ghost sm" onClick={() => setCancel(b)}>Cancel and refund</button>
-        </div>
-      ))}
-
-      <div className="lv-grid">
-        {byGroup.map((g) => (
-          <Card key={g.id} className="lv-col">
-            <h3 className="lv-days">{g.label}</h3>
-            {g.slots.map((s) => {
-              const [label, tone] = STATE[s.state] || ['', ''];
-              return (
-                <div key={s.id} className={`lv-slot ${s.state}`}>
-                  <div className="lv-time"><IconClock width={16} height={16} /><b>{s.from}–{s.to}</b></div>
-                  <div className="lv-st">
-                    <span className={`chip ${tone}`}>{label}</span>
-                    <small className="muted">
-                      {s.state === 'taken' && s.taken_until ? `until ${day(s.taken_until)}` : s.state === 'free' && s.period ? `starts ${wday(s.period.starts_on)}` : s.note}
-                      {s.queue_len > 0 && s.action !== 'waiting' ? ` · ${s.queue_len} waiting` : ''}
-                    </small>
-                  </div>
-                  <div className="lv-act">
-                    {s.action === 'book' && <button className="btn primary sm" onClick={() => setAsk(s)}>Book</button>}
-                    {s.action === 'prebook' && <button className="btn soft sm" onClick={() => setAsk(s)}>Pre-book from {day(s.period.starts_on)}</button>}
-                    {s.action === 'renew' && <button className="btn primary sm" onClick={() => setAsk(s)}>Renew</button>}
-                    {s.action === 'offer' && <button className="btn sun sm" onClick={() => setAsk(s)}>Book now</button>}
-                    {s.action === 'join' && <button className="btn ghost sm" disabled={busy === s.id} onClick={() => queue(s, true)}>Join waitlist</button>}
-                    {s.action === 'waiting' && <button className="btn ghost sm" disabled={busy === s.id} onClick={() => queue(s, false)} title="Leave the waitlist">#{s.my_pos} in line <IconX width={14} height={14} /></button>}
-                    {s.state === 'closed' && <IconLock width={16} height={16} className="muted" />}
-                  </div>
-                </div>
-              );
-            })}
-          </Card>
-        ))}
-      </div>
-
-      <div className="lv-how">
-        <div><b>Fixed time</b><span>3 lessons a week on your days, 60 minutes each, for 4 weeks.</span></div>
-        <div><b>Keep it</b><span>Renew at least {d.priority_days} days before the end and the time stays yours.</span></div>
-        <div><b>Waitlist</b><span>When a time frees up, the first in line gets a Telegram message and {d.offer_hours} hours to pay.</span></div>
-        <div><b>Pre-book</b><span>Pay ahead for a taken time; cancel any time before it starts and the money goes back to your wallet.</span></div>
-      </div>
-
-      {ask && <BookModal s={ask} d={d} onClose={() => setAsk(null)} onDone={() => { setAsk(null); reload(); refresh(); }} />}
-      {cancel && <Confirm title="Cancel this booking?" text={`${cancel.days} ${cancel.from}–${cancel.to} from ${day(cancel.starts_on)}. ${fmtMoney(cancel.price, d.currency)} goes back to your wallet.`} confirmLabel="Cancel and refund"
-        onClose={() => setCancel(null)} onConfirm={async () => { try { await api.post(`/live/bookings/${cancel.id}/cancel`); toast('Cancelled. The money is back in your wallet.'); setCancel(null); reload(); refresh(); } catch (e) { toast(e.message, 'bad'); } }} />}
+      )}
+      {mine.length > 0 && <p className="muted lv-end-note">Your lessons continue as booked until the last date shown. New live lessons are no longer offered.</p>}
     </>
   );
 }

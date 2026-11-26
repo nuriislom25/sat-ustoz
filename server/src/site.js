@@ -1,6 +1,6 @@
 import { tokenPayload } from './auth.js';
 import { satScore } from './scoring.js';
-import { OFERTA } from './oferta.js';
+import { OFERTA, OFERTA_FREE, OFERTA_OLD_PAID } from './oferta.js';
 /**
  * Public website (no sign-in needed) + teacher-editable content.
  *
@@ -69,9 +69,9 @@ export const DEFAULT_BLOCKS = {
     hero_title: 'SAT score,',
     hero_accent: 'with an ustoz',
     hero_sub: 'SAT Ustoz is a complete Reading & Writing prep platform. Take a free 27-question practice test right now — no sign-up — then follow a step-by-step roadmap from 200 to 800.',
-    cta_primary: 'Start free trial',
+    cta_primary: 'Create a free account',
     cta_secondary: 'Take a free practice test',
-    cta_note: 'No card needed',
+    cta_note: 'Free for everyone. No payments, ever.',
     badges: ['Step-by-step explanations', 'Ustoz tips', 'Roadmap 200 → 800', 'Video lessons'],
     stats: [
       { value: '+120', label: 'average score lift' },
@@ -102,7 +102,7 @@ export const DEFAULT_BLOCKS = {
   faq: [
     { q: 'Is the practice test really free?', a: 'Yes. You can take as many 27-question practice tests as you want without signing up.' },
     { q: 'Why are the questions different every time?', a: 'Each visit opens a new random part of our question bank, so you always practise with fresh questions.' },
-    { q: 'What do I get with a free account?', a: 'Your results are saved, you get the readiness check and the first roadmap lessons.' },
+    { q: 'What do I get with a free account?', a: 'Everything: every roadmap lesson and video, the whole Question Bank, full mocks, quizzes and Word Arena. SAT Ustoz is free for everyone.' },
   ],
   sections: [
     { id: 'guides', label: 'Guides', enabled: true },
@@ -133,7 +133,7 @@ const DEFAULT_PAGES = [
   { section: 'guides', slug: 'good-sat-score', emoji: '🎯', title: 'What is a good SAT score?', summary: 'How scores work and what to aim for.',
     body: 'Each section is scored from **200 to 800**. A total of 1200+ is above average; 1400+ opens most top universities.\n\nTake a free practice test to see where you are now.' },
   { section: 'courses', slug: 'writing-part-1-clauses', emoji: '✍️', title: 'Writing Part 1: Clauses', summary: 'Standard English Conventions — sentences, clauses and punctuation.',
-    body: 'Eight short lessons with video, notes and level checks, plus 25 SAT words.\n\nCreate a free account to start the first two lessons.' },
+    body: 'Eight short lessons with video, notes and level checks, plus 25 SAT words.\n\nCreate a free account to start the lessons.' },
 ];
 
 const parse = (s, d) => { try { return s ? JSON.parse(s) : d; } catch { return d; } };
@@ -152,8 +152,21 @@ export async function seedSite() {
   // the teacher's name is spelled Ahror (an older default said "Axror"): fix it in saved blocks and pages once
   await db.run("UPDATE site_blocks SET data = replace(data, 'Axror', 'Ahror') WHERE data LIKE '%Axror%'");
   await db.run("UPDATE site_pages SET body = replace(body, 'Axror', 'Ahror'), title = replace(title, 'Axror', 'Ahror'), summary = replace(summary, 'Axror', 'Ahror') WHERE body LIKE '%Axror%' OR title LIKE '%Axror%' OR summary LIKE '%Axror%'");
+  // SAT Ustoz became free: old wording about trials and first lessons only, in saved blocks and pages
+  for (const [a, b] of [['Start free trial', 'Create a free account'], ['No card needed', 'Free for everyone. No payments, ever.'],
+    ['Your results are saved, you get the readiness check and the first roadmap lessons.', 'Everything: every roadmap lesson and video, the whole Question Bank, full mocks, quizzes and Word Arena. SAT Ustoz is free for everyone.'], ['Create a free account to start the first two lessons.', 'Create a free account to start the lessons.']]) {
+    await db.run('UPDATE site_blocks SET data = replace(data, ?, ?) WHERE data LIKE ?', [a, b, `%${a}%`]);
+    await db.run('UPDATE site_pages SET body = replace(body, ?, ?) WHERE body LIKE ?', [a, b, `%${a}%`]);
+  }
   // the public offer page always exists (the teacher can edit it, it is never overwritten)
   await db.run('INSERT INTO site_pages (section, slug, title, summary, body, emoji, position) VALUES (?,?,?,?,?,?,?) ON CONFLICT (slug) DO NOTHING', [OFERTA.section, OFERTA.slug, OFERTA.title, OFERTA.summary, OFERTA.body, OFERTA.emoji, 999]);
+  // SAT Ustoz became free: swap the old payment section of the terms for the free one (other edits stay)
+  const terms = await db.one("SELECT body FROM site_pages WHERE slug = 'oferta'");
+  if (terms?.body?.includes(OFERTA_OLD_PAID.trim())) {
+    const body = terms.body.replace(OFERTA_OLD_PAID.trim(), OFERTA_FREE.trim()).replace("4.3. Qoidalar buzilganda akkaunt to'lov qaytarilmasdan bloklanishi mumkin.", '4.3. Qoidalar buzilganda akkaunt bloklanishi mumkin.')
+      .replace(", ustozga hisobot berish va to'lovlarni hisobga olish uchun ishlatiladi", ', ustozga hisobot berish uchun ishlatiladi');
+    await db.run("UPDATE site_pages SET body = ? WHERE slug = 'oferta'", [body]);
+  }
   const n = await db.one('SELECT COUNT(*) AS n FROM site_pages WHERE slug <> ?', ['oferta']);
   if (Number(n.n)) return;
   for (const [i, p] of DEFAULT_PAGES.entries()) {
@@ -190,7 +203,7 @@ export async function quota(req, u, cfg) {
   let unlimited = limit <= 0;
   if (u && !unlimited) {
     const row = await db.one('SELECT role, sub_until FROM users WHERE id = ?', [u.id]);
-    unlimited = row?.role === 'master' || subActive(row);
+    unlimited = !!row; // SAT Ustoz is free: every signed-in account is unlimited (only guests have a daily allowance)
   }
   if (unlimited) return { unlimited: true, limit, used: 0, left: Infinity };
   const ip = ipKey(req);

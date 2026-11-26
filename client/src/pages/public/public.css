@@ -348,3 +348,12 @@
 .lp-report { position: relative; z-index: 3; }
 @media (max-width: 1100px) { .lp-hero .dd.tag, .lp-hero .dd.d6 { display: none; } }
 @media (max-width: 900px) { .lp-hero .doodles { display: none; } .lp-cta-main .burst { display: none; } }
+
+/* free for everyone (replaces the old pricing) */
+.pub-free { display: grid; grid-template-columns: 1fr 1.1fr; gap: clamp(20px, 4vw, 48px); align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 32px; padding: clamp(26px, 4vw, 48px); }
+.pub-free-h .pub-h2 { text-align: left; margin: 0 0 12px; }
+.pub-free-h p { color: var(--muted); font-size: 1.05rem; margin: 0 0 22px; max-width: 42ch; }
+.pub-free-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.pub-free-list li { display: flex; gap: 10px; align-items: flex-start; font-weight: 600; }
+.pub-free-list svg { flex: none; width: 20px; height: 20px; color: var(--good); margin-top: 1px; }
+@media (max-width: 760px) { .pub-free { grid-template-columns: 1fr; border-radius: 24px; } }

@@ -6,7 +6,6 @@ import { Card, Empty, Gate, PageHeader, Segmented, useAsync } from '../../compon
 import { IconConsult } from '../../components/icons.jsx';
 import { when } from '../student/Consultations.jsx';
 
-const PLAN = { t1: 'Plus', t2: 'Pro', t3: 'Pro Max', t4: 'Ultra' };
 
 /** Teacher: consultation requests → set the time and a meeting link → mark done. */
 export default function ConsultationsAdmin() {
@@ -16,14 +15,14 @@ export default function ConsultationsAdmin() {
   const [edit, setEdit] = useState({});
   const save = async (c, status) => {
     const e = edit[c.id] || {};
-    try { await api.put(`/consultations/${c.id}`, { status, scheduled_at: e.at ? `${e.at}:00+05:00` : undefined, link: e.link ?? undefined }); toast(status === 'scheduled' ? 'Time confirmed — the student sees it on their Consultations page' : status === 'done' ? 'Marked as done' : 'Cancelled'); st.reload(); }
+    try { await api.put(`/consultations/${c.id}`, { status, scheduled_at: e.at ? `${e.at}:00+05:00` : undefined, link: e.link ?? undefined }); toast(status === 'scheduled' ? 'Time confirmed — the student sees it on their Consultations page' : status === 'done' ? 'Marked as done' : status === 'declined' ? 'Declined — the student sees it' : 'Cancelled'); st.reload(); }
     catch (err) { toast(err.message, 'bad'); }
   };
   return (
     <div className="page">
       <PageHeader title="Consultations" sub="Requests from students on plans 2–4. Set the time and a meeting link (Google Meet, Zoom or Telegram); the student sees it right away." />
       <Gate state={st}>{(list) => {
-        const groups = { open: list.filter((c) => c.status === 'requested'), booked: list.filter((c) => c.status === 'scheduled'), past: list.filter((c) => c.status === 'done' || c.status === 'cancelled') };
+        const groups = { open: list.filter((c) => c.status === 'requested'), booked: list.filter((c) => c.status === 'scheduled'), past: list.filter((c) => c.status === 'done' || c.status === 'cancelled' || c.status === 'declined') };
         const shown = groups[tab];
         return (
           <>
@@ -32,7 +31,7 @@ export default function ConsultationsAdmin() {
               <div className="stack">{shown.map((c) => (
                 <Card key={c.id} className="consult-card">
                   <div className="row between wrap" style={{ gap: 8 }}>
-                    <div><Link to={`/students/${c.user_id}`}><b>{c.name}</b></Link> <span className="chip">{PLAN[c.sub_plan] || 'Plan'}</span> <span className="chip">{c.minutes} min</span></div>
+                    <div><Link to={`/students/${c.user_id}`}><b>{c.name}</b></Link> <span className="chip">{c.minutes} min</span></div>
                     <small className="muted">Asked {when(c.created_at)}</small>
                   </div>
                   <p><b>Wants:</b> {c.preferred}{c.note ? <> · <span className="muted">{c.note}</span></> : null}</p>
@@ -44,10 +43,12 @@ export default function ConsultationsAdmin() {
                       <input placeholder="Meeting link (https://meet.google.com/…)" value={edit[c.id]?.link ?? c.link ?? ''} onChange={(e) => setEdit({ ...edit, [c.id]: { ...edit[c.id], link: e.target.value } })} />
                       <button className="btn primary sm" onClick={() => save(c, 'scheduled')}>{c.status === 'scheduled' ? 'Update' : 'Confirm'}</button>
                       <button className="btn ghost sm" onClick={() => save(c, 'done')}>Done</button>
-                      <button className="btn danger-ghost sm" onClick={() => save(c, 'cancelled')}>Cancel</button>
+                      {c.status === 'requested'
+                        ? <button className="btn danger-ghost sm" onClick={() => save(c, 'declined')}>Decline</button>
+                        : <button className="btn danger-ghost sm" onClick={() => save(c, 'cancelled')}>Cancel</button>}
                     </div>
                   )}
-                  {(c.status === 'done' || c.status === 'cancelled') && <span className={`chip ${c.status === 'done' ? 'good' : ''}`}>{c.status === 'done' ? 'Done' : 'Cancelled'}</span>}
+                  {(c.status === 'done' || c.status === 'cancelled' || c.status === 'declined') && <span className={`chip ${c.status === 'done' ? 'good' : ''}`}>{c.status === 'done' ? 'Done' : c.status === 'declined' ? 'Declined' : 'Cancelled'}</span>}
                 </Card>
               ))}</div>
             )}

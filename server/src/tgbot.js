@@ -12,7 +12,7 @@
  */
 import { readTiers, moveBalance, walletNo, buyPlan, MIN_TOPUP, MAX_TOPUP, tooManyFails, noteFail, clearFails } from './tiers.js';
 import crypto from 'node:crypto';
-import { db, getSettings } from './db.js';
+import { db, getSettings, FREE_PLATFORM } from './db.js';
 import { getSecret, subActive, signToken, startSession } from './auth.js';
 import { getBlock } from './site.js';
 import { CATS, MENU, answer, closeTicket, getState, menuKeyboard, migrateSupport, registerSupportAdmin, registerSupportWeb, setState, ticketByAdminMessage, userMessage } from './tgsupport.js';
@@ -286,10 +286,14 @@ export async function decide(id, ok, by) {
   return { status: ok ? 'approved' : 'rejected', until };
 }
 
+// SAT Ustoz is free (ihsan): the bot no longer sells plans or tops up wallets
+const FREE_TEXT = "🤍 <b>SAT Ustoz endi butunlay bepul.</b>\nBarcha darslar, video, testlar va full mocklar hamma uchun ochiq — hech narsa to'lash shart emas.";
+
 // ---------- webhook ----------
 async function handle(u) {
   if (u.pre_checkout_query) {
     const q = u.pre_checkout_query;
+    if (FREE_PLATFORM) { await tg('answerPreCheckoutQuery', { pre_checkout_query_id: q.id, ok: false, error_message: "SAT Ustoz endi bepul — to'lov kerak emas." }); return; }
     const [, uid, planId] = String(q.invoice_payload).split(':');
     const p = (await plans()).find((x) => x.id === planId);
     const okk = !!p && p.amount * 100 === q.total_amount && !!(await db.one('SELECT 1 AS x FROM users WHERE id = ?', [Number(uid)]));
@@ -333,6 +337,7 @@ async function handle(u) {
       return loginDone(chat, row.code, me, false);
     }
     const user = await db.one('SELECT * FROM users WHERE tg_chat_id = ?', [String(chat)]);
+    if (FREE_PLATFORM && ['plans', 'plan', 'topup', 'wallet', 'card', 'click'].includes(act)) return send(chat, FREE_TEXT, { reply_markup: menuKeyboard() });
     if (!user) return send(chat, "Avval saytga kiring: Subscription → <b>Pay via Telegram</b> tugmasini bosing.");
     if (act === 'plans') return showPlans(chat, user);
     if (act === 'plan') return chooseMethod(chat, arg, user);
@@ -415,16 +420,20 @@ async function handle(u) {
     await setState(chat, {});
     if (!user) {
       const site = await getKey('_site_url');
-      await send(chat, "👋 Assalomu alaykum! Bu <b>SAT Ustoz</b> boti.\n\nBu yerda obuna uchun to'lov qilasiz, ustozga savol berasiz, taklif yoki shikoyat yozasiz. Pastdagi menyudan tanlang.", { reply_markup: menuKeyboard() });
+      await send(chat, FREE_PLATFORM ? "👋 Assalomu alaykum! Bu <b>SAT Ustoz</b> boti.\n\nBu yerda ustozga savol berasiz, taklif yoki shikoyat yozasiz. Pastdagi menyudan tanlang." : "👋 Assalomu alaykum! Bu <b>SAT Ustoz</b> boti.\n\nBu yerda obuna uchun to'lov qilasiz, ustozga savol berasiz, taklif yoki shikoyat yozasiz. Pastdagi menyudan tanlang.", { reply_markup: menuKeyboard() });
       if (code && !uid) return;
+      if (FREE_PLATFORM) return send(chat, FREE_TEXT);
       return send(chat, "To'lov qilish uchun saytga kiring → <b>Subscription</b> → <b>Pay via Telegram</b> — bot hisobingizni o'zi taniydi.",
         site ? { reply_markup: { inline_keyboard: [[{ text: 'Saytni ochish', url: `${site}/subscribe` }]] } } : {});
     }
     await send(chat, `Menyu tayyor, ${esc(user.name.split(' ')[0])}. Savol, taklif yoki shikoyat bo'lsa — pastdagi tugmalardan foydalaning.`, { reply_markup: menuKeyboard() });
+    if (FREE_PLATFORM) return send(chat, FREE_TEXT);
     return showPlans(chat, user);
   }
   // ---- menu buttons ----
   const linked = () => db.one('SELECT * FROM users WHERE tg_chat_id = ?', [String(chat)]);
+  // old keyboards on students' phones may still send these buttons
+  if (FREE_PLATFORM && (text === MENU.plans || text === MENU.wallet || text === MENU.mine || st.topup)) { if (st.topup) await setState(chat, {}); return send(chat, FREE_TEXT, { reply_markup: menuKeyboard() }); }
   if (text === MENU.plans) {
     const user = await linked();
     if (user) return showPlans(chat, user);
@@ -469,7 +478,7 @@ async function handle(u) {
     const user = await linked();
     let wait = null;
     try { wait = JSON.parse((await getKey(`_tg_wait_${chat}`)) || 'null'); } catch {}
-    if (user && wait) return receipt(chat, user, msg);
+    if (user && wait && !FREE_PLATFORM) return receipt(chat, user, msg);
     return userMessage(ctx, chat, msg, { category: 'question' });
   }
   if (text.startsWith('/')) return send(chat, 'Pastdagi menyudan tanlang.', { reply_markup: menuKeyboard() });

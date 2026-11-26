@@ -239,7 +239,6 @@ export function ItemForm({ kind, mode, parent, row, onClose, onSaved }) {
         </Field>
         {kind === 'deck' && <>
           <Field label="Short description"><input value={subtitle} onChange={(e) => setSubtitle(e.target.value)} maxLength={200} placeholder="Words from our class readings" /></Field>
-          <Field label="Free sets" hint="How many sets students can open without a subscription."><input type="number" min={0} max={50} value={free} onChange={(e) => setFree(e.target.value)} /></Field>
         </>}
       </form>
     </Modal>

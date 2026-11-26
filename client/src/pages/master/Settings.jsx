@@ -8,7 +8,7 @@ export default function Settings() {
   const st = useAsync(() => Promise.all([api.get('/settings'), api.get('/plans')]), []);
   return (
     <div className="page" style={{ maxWidth: 860 }}>
-      <PageHeader title="Settings" sub="Access rules, prices and integrations for the whole platform." />
+      <PageHeader title="Settings" sub="Tests, video, integrations and security for the whole platform." />
       <Speed />
       <SystemCheck />
       <Gate state={st}>{([s, p]) => <Form init={{ ...s, tiers: p.tiers }} />}</Gate>
@@ -47,56 +47,12 @@ function Form({ init }) {
     <>
       <Card className="stack">
         <h2>Access</h2>
-        <label className="row" style={{ alignItems: 'flex-start', cursor: 'pointer' }}>
-          <input type="checkbox" checked={f.require_subscription} onChange={set('require_subscription')} style={{ width: 20, height: 20, marginTop: 2 }} />
-          <span><b>Require a subscription to practise</b><br /><small className="muted">New accounts can always sign up, take the readiness check and see their roadmap. Quizzes, lessons and mocks need an active subscription. Turn this off to open everything for free.</small></span>
-        </label>
+        <p className="muted" style={{ margin: 0 }}>SAT Ustoz is free. Every lesson, video, quiz, full mock and the whole Question Bank is open to every student, with no plans, prices or daily limits. Payment records from before stay saved in the database.</p>
       </Card>
       <Card className="stack">
-        <h2>Plans</h2>
-        <small className="muted">Price is per month (Ultra: per 12 live lessons, booked on the Live lessons page). Questions / day counts every answer on the platform; 0 = unlimited (also for full mocks a week).</small>
-        <div className="table-wrap"><table className="t plans-edit">
-          <thead><tr><th>Plan</th><th>Name</th><th>Price / month</th><th>Math price</th><th>Questions / day</th><th>Quizzes / day</th><th>Full mocks / week</th><th>Consultation every … days</th></tr></thead>
-          <tbody>{f.tiers.map((t, i) => (
-            <tr key={t.id}><td><b>{i + 1}</b></td>
-              {[['name', 'text'], ['price'], ['math_price'], ['q_day'], ['quiz_day'], ['fm_week'], ['consult_days']].map(([k, type]) => (
-                <td key={k}><input type={type || 'number'} min="0" value={t[k] ?? ''} disabled={(k === 'consult_days' && i === 0) || (k === 'math_price' && t.live)} title={k === 'math_price' && t.live ? 'Math has no live lessons' : undefined}
-                  onChange={(e) => setF({ ...f, tiers: f.tiers.map((x) => (x.id === t.id ? { ...x, [k]: e.target.value } : x)) })} /></td>
-              ))}
-            </tr>
-          ))}</tbody>
-        </table></div>
-        <small className="muted">1 Plus: unlimited practice, quizzes, Word Vault · 2 Pro: + roadmap lessons (no video), consultations · 3 Pro Max: everything self-paced (video, ask the teacher, weekly consultation) · 4 Ultra: everything + 12 live 1-on-1 lessons at a fixed time.</small>
-        <div className="math-set">
-          <h3>SAT Math</h3>
-          <small className="muted">Math is a separate plan: the same Plus / Pro / Pro Max with Math prices above (Pro and higher open the Math roadmap). Students without a Math plan get a free trial.</small>
-          <div className="grid g3">
-            <Field label="Math trial: questions / day" hint="Math practice and lesson questions"><input type="number" min="0" value={f.math_free_day ?? 10} onChange={set('math_free_day')} /></Field>
-            <Field label="Math trial: free roadmap lessons" hint="the first lessons of the Math roadmap"><input type="number" min="0" max="50" value={f.math_free_lessons ?? 2} onChange={set('math_free_lessons')} /></Field>
-            <Field label="English + Math discount, %" hint="buying both, or the second subject while the first is active"><input type="number" min="0" max="90" value={f.bundle_discount ?? 20} onChange={set('bundle_discount')} /></Field>
-          </div>
-        </div>
+        <h2>Tests</h2>
         <div className="grid g3">
-          <Field label="Free: questions / day" hint="every test counts: practice, quizzes, full mocks, level checks, Words in Context"><input type="number" min="0" value={f.free_q_day} onChange={set('free_q_day')} /></Field>
-          <Field label="Free: full mocks / week"><input type="number" min="0" value={f.fm_free} onChange={set('fm_free')} /></Field>
-          <Field label="Extra full mock (from balance)"><input inputMode="numeric" value={f.fm_extra_price} onChange={set('fm_extra_price')} /></Field>
-        </div>
-        <div className="grid g3">
-          <Field label="Extra quiz (from balance)" hint="after the plan's free quizzes a day"><input inputMode="numeric" value={f.quiz_extra_price ?? ''} onChange={set('quiz_extra_price')} /></Field>
           <Field label="Exam mode: seconds lost per exit" hint="leaving full screen, switching tab or app during a test (0 = only recorded)"><input type="number" min="0" max="600" value={f.focus_penalty ?? 30} onChange={set('focus_penalty')} /></Field>
-        </div>
-        <div className="grid g3">
-          <Field label="Free students: days between lessons" hint="after the free lessons, each roadmap lesson opens this many days after passing the previous one (0 = no wait)"><input type="number" min="0" max="60" value={f.drip_days ?? 7} onChange={set('drip_days')} /></Field>
-          <Field label="Open a waiting lesson now (from balance)" hint="0 = students can only wait or subscribe"><input inputMode="numeric" value={f.lesson_unlock_price ?? 10000} onChange={set('lesson_unlock_price')} /></Field>
-        </div>
-        <div className="grid g3">
-          <Field label="Currency"><input maxLength={3} value={f.currency} onChange={set('currency')} /></Field>
-          <Field label="Live lessons link" hint="plan 4"><input value={f.live_link || ''} onChange={set('live_link')} placeholder="https://meet.google.com/…" /></Field>
-          <Field label="Live lessons schedule"><input value={f.live_note || ''} onChange={set('live_note')} placeholder="Tue & Thu, 19:00" /></Field>
-        </div>
-        <div className="grid g2">
-          <Field label="Card for payments" hint="shown on the Subscription page and in the bot"><input inputMode="numeric" value={f.pay_card || ''} onChange={set('pay_card')} placeholder="8600 0000 0000 0000" /></Field>
-          <Field label="Card holder name"><input value={f.pay_holder || ''} onChange={set('pay_holder')} placeholder="Name Surname" /></Field>
         </div>
       </Card>
       <Card className="stack">
@@ -170,7 +126,6 @@ function Form({ init }) {
       <div className="row" style={{ justifyContent: 'flex-end' }}><button className="btn primary lg" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save settings'}</button></div>
       <SecurityLog />
       <TelegramCard />
-      <RequestsCard />
       <PlacementCard />
     </>
   );
@@ -228,39 +183,26 @@ function TelegramCard() {
   const run = async (fn, msg) => { setBusy(true); try { await fn(); toast(msg); st.reload(); } catch (e) { toast(e.message, 'bad'); } finally { setBusy(false); } };
   return (
     <Card className="stack">
-      <h2>Telegram payment bot</h2>
+      <h2>Telegram bot</h2>
       <Gate state={st}>{(s) => (
         <>
           <div className="row wrap" style={{ gap: 8 }}>
             <span className={`chip ${s.connected ? 'good' : 'warn'}`}>{s.connected ? <><IconCheck width={13} height={13} /> Connected: @{s.bot}</> : 'Not connected'}</span>
             {s.connected && <span className={`chip ${s.webhook_ok ? 'good' : 'bad'}`}>{s.webhook_ok ? 'Receiving messages' : `Webhook: ${s.webhook_error || 'not set'}`}</span>}
-            {s.connected && <span className={`chip ${s.admins ? 'good' : 'warn'}`}>{s.admins ? `${s.admins} teacher chat(s) get receipts` : 'No teacher linked yet'}</span>}
-            <span className={`chip ${s.pay_token ? 'good' : ''}`}>{s.pay_token ? 'Click / Payme on' : 'Click / Payme off'}</span>
+            {s.connected && <span className={`chip ${s.admins ? 'good' : 'warn'}`}>{s.admins ? `${s.admins} teacher chat(s) linked` : 'No teacher linked yet'}</span>}
           </div>
           <ol className="muted tg-steps">
             <li>Open <a href="https://t.me/BotFather" target="_blank" rel="noreferrer">@BotFather</a> → <b>/newbot</b> → choose a name and a username ending in “bot”. Copy the token.</li>
             <li>Paste the token below and press <b>Connect</b> (on the live site — Telegram needs https).</li>
-            <li>In Telegram open your bot and send: <code>/admin {s.admin_code}</code> — receipts will come to you with ✅ / ❌ buttons.</li>
-            <li>Fill in the <b>card for payments</b> above and save.</li>
+            <li>In Telegram open your bot and send: <code>/admin {s.admin_code}</code> — students' questions and consultation requests will come to you.</li>
           </ol>
           <div className="row wrap" style={{ gap: 8 }}>
             <input className="grow" type="password" autoComplete="off" value={token} onChange={(e) => setToken(e.target.value)} placeholder={s.connected ? 'New token (only to change the bot)' : '123456789:AA… token from @BotFather'} aria-label="Bot token" />
             <button className="btn primary" disabled={busy || (!token.trim() && !s.connected)} onClick={() => run(() => api.post('/telegram/connect', token.trim() ? { token: token.trim() } : {}).then(() => setToken('')), 'Bot connected')}>{s.connected && !token.trim() ? 'Reconnect' : 'Connect'}</button>
             {s.connected && <button className="btn ghost" disabled={busy} onClick={() => setOff(true)}>Disconnect</button>}
           </div>
-          <details>
-            <summary className="linkish" style={{ cursor: 'pointer' }}>Click / Payme inside Telegram (optional)</summary>
-            <div className="stack sm" style={{ marginTop: 10 }}>
-              <p className="muted" style={{ fontSize: '.9rem' }}>After a merchant agreement with Click or Payme, open @BotFather → your bot → <b>Payments</b> → choose the provider → copy the <b>provider token</b> here. Then the bot also offers automatic payment; the subscription turns on by itself.</p>
-              <div className="row wrap" style={{ gap: 8 }}>
-                <input className="grow" type="password" autoComplete="off" value={payToken} onChange={(e) => setPayToken(e.target.value)} placeholder={s.pay_token ? 'Saved — paste a new one to change' : 'Provider token'} aria-label="Payment provider token" />
-                <button className="btn soft" disabled={busy || !payToken.trim()} onClick={() => run(() => api.put('/telegram/pay-token', { pay_token: payToken.trim() }).then(() => setPayToken('')), 'Saved')}>Save</button>
-                {s.pay_token && <button className="btn ghost" disabled={busy} onClick={() => run(() => api.put('/telegram/pay-token', { pay_token: '' }), 'Click / Payme turned off')}>Turn off</button>}
-              </div>
-            </div>
-          </details>
           {s.admins > 0 && <button className="linkish" style={{ justifySelf: 'start' }} onClick={() => run(() => api.post('/telegram/admins/reset'), 'Teacher chats removed — send /admin with the new code')}>Remove linked teacher chats (new code)</button>}
-          {off && <Confirm title="Disconnect the bot?" text="Students will not be able to pay through Telegram until you connect it again." confirmLabel="Disconnect" onClose={() => setOff(false)} onConfirm={async () => { await run(() => api.post('/telegram/disconnect'), 'Bot disconnected'); setOff(false); }} />}
+          {off && <Confirm title="Disconnect the bot?" text="Students will not be able to message you through Telegram until you connect it again." confirmLabel="Disconnect" onClose={() => setOff(false)} onConfirm={async () => { await run(() => api.post('/telegram/disconnect'), 'Bot disconnected'); setOff(false); }} />}
         </>
       )}</Gate>
     </Card>

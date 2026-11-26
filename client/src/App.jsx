@@ -29,7 +29,7 @@ try { if (localStorage.getItem('signed-in') || localStorage.getItem('token')) { 
 const MockTaker = page(() => import('./pages/mock/MockTaker.jsx'));
 const MockResult = page(() => import('./pages/mock/MockResult.jsx'));
 const Leaderboard = page(() => import('./pages/student/Leaderboard.jsx'));
-const Finance = page(() => import('./pages/master/Finance.jsx'));
+// SAT Ustoz is free: the Finance and Plans pages are gone (payment records stay in the database)
 const Progress = page(() => import('./pages/master/Progress.jsx'));
 const Reports = page(() => import('./pages/master/Reports.jsx'));
 const Quality = page(() => import('./pages/master/Quality.jsx'));
@@ -65,7 +65,6 @@ const QuizPreview = page(() => import('./pages/master/QuizPreview.jsx'));
 const RoadmapEditor = page(() => import('./pages/master/RoadmapEditor.jsx'));
 const Settings = page(() => import('./pages/master/Settings.jsx'));
 const Welcome = page(() => import('./pages/student/Welcome.jsx'));
-const Subscribe = page(() => import('./pages/student/Subscribe.jsx'));
 const PlacementTest = page(() => import('./pages/placement/PlacementTest.jsx'));
 const PlacementResult = page(() => import('./pages/placement/PlacementResult.jsx'));
 const Lesson = page(() => import('./pages/lesson/Lesson.jsx'));
@@ -210,7 +209,7 @@ export default function App() {
             <Route path="full-mocks" element={tmath ? <MathMockAdmin /> : <FullMockAdmin />} />
             <Route path="consultations" element={<ConsultationsAdmin />} />
             <Route path="leaderboard" element={<Leaderboard />} />
-            <Route path="finance" element={<Finance />} />
+            <Route path="finance" element={<Navigate to="/" replace />} />
             <Route path="progress" element={<Progress />} />
             <Route path="reports" element={<Reports />} />
             <Route path="quality" element={<Quality />} />
@@ -233,7 +232,7 @@ export default function App() {
             <Route path="saved" element={math ? home : <Saved />} />
             <Route path="mistakes" element={math ? <MathMistakes /> : <Mistakes />} />
             <Route path="portfolio" element={<Portfolio />} />
-            <Route path="subscribe" element={<Subscribe />} />
+            <Route path="subscribe" element={<Navigate to="/" replace />} />
             <Route path="welcome" element={<Welcome />} />
             <Route path="placement" element={<Welcome />} />
           </>
@@ -242,7 +241,7 @@ export default function App() {
         <Route path="placement/result/:id" element={<PlacementResult />} />
         <Route path="lesson/:id" element={<Lesson />} />
         <Route path="lesson-check/:id" element={<LevelCheckResult />} />
-        <Route path="live" element={math ? home : <Live />} />
+        <Route path="live" element={math || (user.role !== 'master' && !user.access?.live) ? home : <Live />} />
         <Route path="profile" element={<Profile />} />
         <Route path="question-bank" element={math ? <MathBank /> : <QuestionBank />} />
         <Route path="login" element={<Navigate to="/" replace />} />

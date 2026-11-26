@@ -8,7 +8,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { db, migrate, getSettings, setSettings, DB_KIND, dbHost } from './db.js';
+import { db, migrate, getSettings, setSettings, DB_KIND, dbHost, FREE_PLATFORM } from './db.js';
 import { notifyAdmins, webhookInfo } from './tgbot.js';
 import { initSecret, signToken, publicUser, requireAuth, requireMaster, requireStudent, subActive, verifyGoogleCredential, userFrom, startSession, endSession } from './auth.js';
 import { parseUpload, buildTemplate, DEFAULT_PROMPT } from './parse.js';
@@ -583,6 +583,7 @@ app.put('/api/leaderboard/prizes', requireMaster, h(async (req, res) => {
 }));
 // teacher: pay last week's wallet prizes (each place once — the ledger ref stops double payments)
 app.post('/api/leaderboard/award', requireMaster, h(async (req, res) => {
+  if (FREE_PLATFORM) return bad(res, 'SAT Ustoz is free: leaderboard prizes are no longer paid into wallets', 410, { code: 'free' });
   const s = await getSettings();
   const prizes = readPrizes(s);
   const wk = (await db.one(`SELECT to_char((${WEEK_START}) - interval '7 days', 'YYYY-MM-DD') AS d`)).d;

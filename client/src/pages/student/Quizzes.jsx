@@ -9,7 +9,8 @@ import { IconArrow, IconCheck, IconChevron, IconClock, IconCrown, IconFolder, Ic
 import { UsageChip } from '../../usage.jsx';
 import { subjectOf } from '../../subject.jsx';
 
-export function PaywallBanner() {
+export function PaywallBanner() { return null; } // SAT Ustoz is free
+function OldPaywallBanner() { // eslint-disable-line no-unused-vars
   return (
     <div className="banner">
       <span className="item-ic"><IconCrown /></span>
@@ -19,7 +20,8 @@ export function PaywallBanner() {
   );
 }
 
-function MathPaywall() {
+function MathPaywall() { return null; } // SAT Ustoz is free
+function OldMathPaywall() { // eslint-disable-line no-unused-vars
   return (
     <div className="banner">
       <span className="item-ic"><IconCrown /></span>

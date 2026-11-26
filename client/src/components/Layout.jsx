@@ -25,9 +25,9 @@ const STUDENT_NAV = [
   { to: '/analytics', label: 'Results', icon: IconChart, c: '#2A55E5' },
   { to: '/leaderboard', label: 'Leaderboard', icon: IconTrophy, c: '#E8A93C' },
   { to: '/consultations', label: 'Consultations', icon: IconConsult, c: '#0E9F6E' },
-  { to: '/live', label: 'Live lessons', icon: IconLive, c: '#E2553D' },
+  // SAT Ustoz is free: no plans or wallet; live lessons only for a student whose booked period is still running
+  { to: '/live', label: 'Live lessons', icon: IconLive, c: '#E2553D', needsLive: true },
   { to: '/saved', label: 'Saved', icon: IconBookmark, c: '#E0569B' },
-  { to: '/subscribe', label: 'Plans & wallet', icon: IconCrown, c: '#E8A93C' },
 ];
 // phones: the most used places sit in a bottom tab bar; "More" opens the full menu
 const STUDENT_TABS = [
@@ -49,7 +49,7 @@ const MASTER_TABS = [
   { to: '/', label: 'Overview', icon: IconDashboard, end: true, c: '#2A55E5' },
   { to: '/students', label: 'Students', icon: IconUsers, c: '#2A55E5' },
   { to: '/progress', label: 'Progress', icon: IconChart, c: '#8E5CF7' },
-  { to: '/finance', label: 'Finance', icon: IconWallet, c: '#22B07D' },
+  { to: '/groups', label: 'Groups', icon: IconLayers, c: '#12A39A' },
   { to: '/roadmap', label: 'Roadmap', icon: IconRoad, c: '#F28B4E' },
   { to: '/support', label: 'Support', icon: IconChats, c: '#E0569B' },
 ];
@@ -115,7 +115,7 @@ export default function Layout() {
   const on = (n) => !!n.also?.some((pfx) => loc.pathname.startsWith(pfx));
   useEffect(() => { setOpen(false); window.scrollTo({ top: 0 }); }, [loc.pathname]);
   const math = subjectOf(user) === 'math';
-  const nav = user.role === 'master' ? masterNav(user).filter((n) => canSee(user, n.to)) : (math ? MATH_NAV : STUDENT_NAV).filter((n) => !n.needsGroup || user.groups?.length);
+  const nav = user.role === 'master' ? masterNav(user).filter((n) => canSee(user, n.to)) : (math ? MATH_NAV : STUDENT_NAV).filter((n) => (!n.needsGroup || user.groups?.length) && (!n.needsLive || user.access?.live));
   // open assignments (new / in progress / retake) as a badge in the menu
   const [todo, setTodo] = useState(0);
   useEffect(() => { if (user.role === 'student') api.get('/assignments').then((d) => setTodo(d.open || 0)).catch(() => {}); }, [user.role, loc.pathname]);
@@ -141,7 +141,7 @@ export default function Layout() {
             <NavLink key={n.to} to={n.to} end={n.end} style={{ '--c': n.c || '#2A55E5' }} className={({ isActive }) => (isActive || on(n) ? 'active' : '')}>{({ isActive }) => (<><span className="nav-ic"><n.icon width={19} height={19} weight={isActive || on(n) ? 'fill' : 'duotone'} /></span>{n.label}
               {n.to === '/assignments' && todo > 0 && <span className="badge-n">{todo}</span>}
               {(n.to === '/mistakes' || n.to === '/reports') && badge2 > 0 && <span className="badge-n">{badge2}</span>}
-              {n.to === '/subscribe' && !user.sub_active && user.access?.subscription_required && <span className="badge-n sun">Get</span>}</>)}</NavLink>
+</>)}</NavLink>
           ))}
         </nav>
         <div className="side-foot">

@@ -73,7 +73,8 @@ export function ComingSoon({ title, text, icon: Icon = IconMath }) {
 }
 
 /** Shown where a Math plan is needed. */
-export function BuyMath({ title = 'This comes with a Math plan', text = 'Get a Math plan to open every video lesson and unlimited Math practice.' }) {
+export function BuyMath() { return null; } // SAT Ustoz is free: nothing to buy
+function OldBuyMath({ title = 'This comes with a Math plan', text = 'Get a Math plan to open every video lesson and unlimited Math practice.' }) { // eslint-disable-line no-unused-vars
   return (
     <div className="buy-math">
       <span className="bm-ic"><IconLock width={22} height={22} /></span>

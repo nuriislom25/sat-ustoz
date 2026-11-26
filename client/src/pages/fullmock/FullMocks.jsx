@@ -29,13 +29,11 @@ export default function FullMocks() {
         <>
           <div className={`fm-quota ${q.left ? '' : 'out'}`}>
             <div>
-              <small>{q.plan_name} plan · this week</small>
+              <small>Full mocks · this week</small>
               <b>{q.unlimited ? 'Unlimited' : `${q.left} of ${q.limit} left`}</b>
-              <span>{q.unlimited ? 'Your plan has no weekly limit.' : q.left ? 'A mock counts when you start it.' : `New mocks open ${fmtDate(q.resets_at)} (Monday). Extra mock: ${fmtMoney(q.extra_price, 'UZS')} from your balance.`}</span>
+              <span>{q.unlimited ? 'Free for everyone, with no weekly limit.' : q.left ? 'A mock counts when you start it.' : `New mocks open ${fmtDate(q.resets_at)} (Monday).`}</span>
             </div>
             {!q.unlimited && <div className="fm-dots" aria-hidden="true">{Array.from({ length: Math.min(q.limit, 7) }, (_, i) => <i key={i} className={i < q.used ? 'used' : ''} />)}</div>}
-            <div className="fm-bal"><small>Balance</small><b>{fmtMoney(q.balance, 'UZS')}</b><Link to="/subscribe#pay">Top up</Link></div>
-            {q.plan === 'free' && user.role === 'student' && <Link className="btn sun" to="/subscribe">More mocks with a plan <IconArrow width={16} height={16} /></Link>}
           </div>
           {user.role === 'student' && <FullMockCard />}
           {mocks.length > 0 && <h2 className="fm-sec">Official practice tests</h2>}

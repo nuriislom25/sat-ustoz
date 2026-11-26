@@ -33,8 +33,6 @@ export default function Students() {
           <>
             <Segmented value={filter} onChange={setFilter} options={[
               { value: 'all', label: 'All', count: students.length },
-              { value: 'subscribed', label: 'Subscribed', count: students.filter(FILTERS.subscribed).length },
-              { value: 'free', label: 'No subscription', count: students.filter(FILTERS.free).length },
               { value: 'new', label: 'New this week', count: students.filter(FILTERS.new).length },
             ]} />
             <div className="row wrap">
@@ -47,22 +45,12 @@ export default function Students() {
               {shown.length === 0 ? <Empty icon={<IconUsers />} title={"No students found"} text={"Add a new student or change the filter."} /> : (
                 <div className="table-wrap">
                   <table className="t">
-                    <thead><tr><th>Student</th><th>Subscription</th><th>Wallet</th><th>Placement</th><th>R&amp;W estimate</th><th>Accuracy</th><th>This week</th><th>Joined</th><th /></tr></thead>
+                    <thead><tr><th>Student</th><th>Placement</th><th>R&amp;W estimate</th><th>Accuracy</th><th>This week</th><th>Joined</th><th /></tr></thead>
                     <tbody>
                       {shown.map((s) => (
                         <tr key={s.id} className="click" onClick={() => nav(`/students/${s.id}`)}>
                           <td><div className="row"><Avatar name={s.name} src={s.avatar_url} /><div style={{ minWidth: 0 }}><b>{s.name}</b>
                             <div className="muted row" style={{ fontSize: '.78rem', gap: 6 }}>{s.provider === 'google' && <IconGoogle width={12} height={12} />}{s.email || '@' + s.login}</div>{s.group_name && <div className="row wrap" style={{ gap: 4, marginTop: 3 }}>{s.group_name.split(', ').map((n) => <span key={n} className="chip primary" style={{ padding: '0 8px', whiteSpace: 'nowrap', fontSize: '.72rem' }}>{n}</span>)}</div>}</div></div></td>
-                          <td onClick={(e) => e.stopPropagation()}>
-                            {s.sub_active
-                              ? <button className="chip good chip-btn" style={{ borderColor: 'transparent' }} onClick={() => setSub(s)} title="Extend or cancel">Until {fmtDate(s.sub_until, { day: 'numeric', month: 'short' })}</button>
-                              : <button className="btn soft sm" onClick={() => setSub(s)}><IconCrown width={15} height={15} /> Activate</button>}
-                          </td>
-                          <td className="nowrap" onClick={(e) => e.stopPropagation()}>
-                            <button className={`wallet-chip ${Number(s.balance) ? 'has' : ''}`} onClick={() => setWallet({ id: s.id, name: s.name, balance: Number(s.balance || 0) })} title="Add, subtract or set the wallet">
-                              {Number(s.balance || 0).toLocaleString('en-US').replace(/,/g, ' ')} so'm <IconPlus width={13} height={13} />
-                            </button>
-                          </td>
                           <td>{s.cefr ? <span className="row" style={{ gap: 6 }}><span className={`chip ${s.admitted ? 'good' : 'warn'}`}>{s.cefr}</span><b>{s.diagnostic_score}</b></span> : s.diagnostic_score != null ? <b>{s.diagnostic_score}</b> : <span className="muted">Not taken</span>}</td>
                           <td><b>{s.estimates.english ?? '—'}</b></td>
                           <td>{s.attempts ? <span className={`chip ${pctTone(s.accuracy)}`}>{s.accuracy}%</span> : <span className="muted">—</span>}</td>

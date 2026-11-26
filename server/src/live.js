@@ -13,7 +13,7 @@
  *    to pay; then the offer passes to the next one.
  * State is checked on every slots view and by the background sweep (drip.js tick + daily cron).
  */
-import { db, getSettings } from './db.js';
+import { db, getSettings, FREE_PLATFORM } from './db.js';
 import { moveBalance, readTiers } from './tiers.js';
 import { notifyUser, notifyAdmins } from './tgbot.js';
 
@@ -131,11 +131,11 @@ export async function sweepLive() {
   for (const slot of SLOTS) {
     const x = stateOf(slot.id, st);
     // renewal reminder: 5 days before the end, once
-    if (x.cur && !x.cur.reminded && !x.future.some((b) => b.user_id === x.cur.user_id) && today >= addDays(x.cur.ends_on, -5)) {
+    if (!FREE_PLATFORM && x.cur && !x.cur.reminded && !x.future.some((b) => b.user_id === x.cur.user_id) && today >= addDays(x.cur.ends_on, -5)) {
       const r = await db.one('UPDATE live_bookings SET reminded = true WHERE id = ? AND NOT reminded RETURNING id', [x.cur.id]);
       if (r) await notifyUser(x.cur.user_id, `⏰ Live darslaringiz ${x.cur.ends_on} da tugaydi.\nVaqtingiz (${esc(slot.uz)} ${slot.from}) sizda qolishi uchun <b>${x.priorityUntil}</b> gacha uzaytiring: ${SITE}/live\nKeyin joy navbatdagilarga ochiladi.`);
     }
-    if (!x.open || x.offer || !x.queue.length) continue;
+    if (FREE_PLATFORM || !x.open || x.offer || !x.queue.length) continue; // no new live periods are offered any more
     const head = x.queue[0];
     const until = new Date(Date.now() + OFFER_HOURS * 3600e3).toISOString();
     const r = await db.one(`UPDATE live_queue SET status = 'offered', offer_until = ?, updated_at = now() WHERE id = ? AND status = 'waiting'
@@ -213,6 +213,8 @@ export function registerLive(app, { h, bad, requireMaster, requireStudent }) {
 
   // book a free slot, pre-book the next period of a taken one, renew your own, or take a waitlist offer
   app.post('/api/live/book', requireStudent, h(async (req, res) => {
+    // live lessons are no longer offered: bookings already running continue to their end
+    if (FREE_PLATFORM) return bad(res, 'Live lessons are no longer offered. Lessons already booked continue as planned.', 410, { code: 'live_closed' });
     const slot = SLOT.get(String(req.body?.slot || ''));
     if (!slot) return bad(res, 'Choose a time');
     const key = String(req.body?.key || '').replace(/[^\w-]/g, '').slice(0, 40);
@@ -258,6 +260,7 @@ export function registerLive(app, { h, bad, requireMaster, requireStudent }) {
 
   // waitlist
   app.post('/api/live/queue', requireStudent, h(async (req, res) => {
+    if (FREE_PLATFORM) return bad(res, 'Live lessons are no longer offered.', 410, { code: 'live_closed' });
     const slot = SLOT.get(String(req.body?.slot || ''));
     if (!slot) return bad(res, 'Choose a time');
     await db.run("INSERT INTO live_queue (slot_id, user_id) VALUES (?, ?) ON CONFLICT DO NOTHING", [slot.id, req.user.id]);

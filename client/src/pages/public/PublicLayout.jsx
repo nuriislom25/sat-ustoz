@@ -57,11 +57,11 @@ export default function PublicLayout() {
             <div className="pub-mnav">
               <Link to="/practice"><IconBolt width={20} height={20} /><span><b>Free practice test</b><small>27 questions · score estimate</small></span></Link>
               {sections.map((s) => <Link key={s.id} to={`/s/${s.id}`}><IconBook width={20} height={20} /><span><b>{s.label}</b><small>{pagesOf(s.id).length} {pagesOf(s.id).length === 1 ? 'page' : 'pages'}</small></span></Link>)}
-              <Link to="/#pricing" onClick={() => { setOpen(false); setTimeout(() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' }), 80); }}><IconCrown width={20} height={20} /><span><b>Pricing</b><small>Free and 4 plans</small></span></Link>
+              <Link to="/#free" onClick={() => { setOpen(false); setTimeout(() => document.getElementById('free')?.scrollIntoView({ behavior: 'smooth' }), 80); }}><IconCrown width={20} height={20} /><span><b>Free for all</b><small>Everything is open</small></span></Link>
               <Link to="/about"><IconUser width={20} height={20} /><span><b>About</b><small>Who teaches here</small></span></Link>
             </div>
             <NavLink to="/about" className="pub-nav-link">About</NavLink>
-            <Link to="/#pricing" className="pub-nav-link" onClick={() => setTimeout(() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' }), 60)}>Pricing</Link>
+            <Link to="/#free" className="pub-nav-link" onClick={() => setTimeout(() => document.getElementById('free')?.scrollIntoView({ behavior: 'smooth' }), 60)}>Free for all</Link>
             <div className="pub-nav-mobile-cta">
               {user ? <Link className="btn sun lg block" to="/">Open my dashboard</Link> : <>
                 <Link className="btn sun lg block" to="/signup">Start free trial</Link>
@@ -109,7 +109,7 @@ export default function PublicLayout() {
             <Link to="/about">About us</Link>
             <Link to="/uz" lang="uz">SAT online platforma (O‘zbekcha)</Link>
             <Link to="/ru" lang="ru">Подготовка к SAT (Русский)</Link>
-            <Link to="/#pricing">Pricing</Link>
+            <Link to="/#free">Free for all</Link>
             {site?.about?.instagram && <a href={site.about.instagram} target="_blank" rel="noreferrer">Instagram</a>}
             {site?.about?.telegram && <a href={site.about.telegram} target="_blank" rel="noreferrer">Telegram</a>}
           </div>

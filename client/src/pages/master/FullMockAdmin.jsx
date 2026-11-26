@@ -18,7 +18,6 @@ export default function FullMockAdmin() {
       </PageHeader>
       <Gate state={st}>{(d) => (
         <>
-          <Limits limits={d.limits} />
           {!d.mocks.length ? <Card><Empty icon={<IconDoc />} title="No mocks yet" text="Create one, then upload Module 1 and Module 2." /></Card>
             : <div className="stack">{d.mocks.map((m) => <MockCard key={m.id} m={m} onChange={st.reload} />)}</div>}
         </>

@@ -45,9 +45,8 @@ function Prizes({ d, teacher, onEdit, onAwarded }) {
   const toast = useToast();
   const c = useCountdown(d.ends_at);
   const [busy, setBusy] = useState(false);
-  const prizes = d.prizes.filter((p) => p.text || p.bonus);
+  const prizes = d.prizes.filter((p) => p.text); // SAT Ustoz is free: prizes are things, never wallet money
   const lw = d.last_week?.winners || [];
-  const due = teacher && lw.some((w, i) => !w.awarded && d.prizes[i]?.bonus);
   const award = async () => {
     setBusy(true);
     try { const r = await api.post('/leaderboard/award', {}); toast(r.awarded ? `${r.awarded} prize${r.awarded === 1 ? '' : 's'} sent to wallets` : 'Nothing new to award'); onAwarded(); }
@@ -70,7 +69,7 @@ function Prizes({ d, teacher, onEdit, onAwarded }) {
           <div key={i} className={`lb-prize p${i + 1}`}>
             <span className="lb-medal">{i === 0 ? <IconCrown width={22} height={22} weight="fill" /> : <IconAward width={22} height={22} weight="fill" />}</span>
             <small>{PLACE[i]} place</small>
-            <b>{p.text || `${p.bonus.toLocaleString('en-US').replace(/,/g, ' ')} so‘m`}</b>
+            <b>{p.text}</b>
             {d.top[i]?.points > 0 && <em>now: {d.top[i].name}{d.top[i].me ? ' (you)' : ''}</em>}
           </div>
         )) : <p className="muted">No prizes set yet.</p>}
@@ -82,13 +81,12 @@ function Prizes({ d, teacher, onEdit, onAwarded }) {
       {lw.length > 0 && (
         <div className="lb-last">
           <span>Last week:</span>
-          {lw.map((w, i) => <span key={w.id} className="lb-last-w"><i>{i + 1}</i> {w.name} · {w.points}{w.awarded ? ' · prize sent' : ''}</span>)}
+          {lw.map((w, i) => <span key={w.id} className="lb-last-w"><i>{i + 1}</i> {w.name} · {w.points}</span>)}
         </div>
       )}
       {teacher && (
         <div className="row wrap" style={{ marginTop: 12 }}>
           <button className="btn ghost sm" onClick={onEdit}><IconEdit width={16} height={16} /> Edit prizes</button>
-          {due && <button className="btn sun sm" disabled={busy} onClick={award}>Send last week’s wallet prizes</button>}
         </div>
       )}
     </section>
@@ -134,7 +132,7 @@ function Board({ d }) {
 
 function EditPrizes({ d, onClose, onSaved }) {
   const toast = useToast();
-  const [rows, setRows] = useState(() => [0, 1, 2].map((i) => ({ text: d.prizes[i]?.text || '', bonus: d.prizes[i]?.bonus || 0 })));
+  const [rows, setRows] = useState(() => [0, 1, 2].map((i) => ({ text: d.prizes[i]?.text || '', bonus: 0 })));
   const [note, setNote] = useState(d.prize_note || '');
   const set = (i, k) => (e) => setRows((r) => r.map((x, j) => (j === i ? { ...x, [k]: e.target.value } : x)));
   const save = async () => {
@@ -144,13 +142,9 @@ function EditPrizes({ d, onClose, onSaved }) {
     <Modal title="Weekly prizes" onClose={onClose} footer={<><button className="btn ghost" onClick={onClose}>Cancel</button><button className="btn primary" onClick={save}>Save</button></>}>
       <div className="stack">
         {rows.map((r, i) => (
-          <div key={i} className="grid g2">
-            <label className="field"><span>{PLACE[i]} place — prize</span><input value={r.text} onChange={set(i, 'text')} maxLength={80} placeholder="SAT book, free month of Plan 3…" /></label>
-            <label className="field"><span>Wallet bonus (so‘m)</span><input inputMode="numeric" value={r.bonus} onChange={set(i, 'bonus')} placeholder="0" /></label>
-          </div>
+          <label key={i} className="field"><span>{PLACE[i]} place — prize</span><input value={r.text} onChange={set(i, 'text')} maxLength={80} placeholder="SAT book, certificate…" /></label>
         ))}
         <label className="field"><span>Note for students</span><input value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} placeholder="Prizes are announced every Monday on Telegram." /></label>
-        <small className="muted">Wallet bonuses go to last week’s top 3 when you press “Send last week’s wallet prizes”. Each place is paid only once.</small>
       </div>
     </Modal>
   );

@@ -288,7 +288,7 @@ const untilText = (iso) => {
   return h ? `${h} h ${m} min` : `${m} min`;
 };
 
-/** Free daily allowance: guests and free accounts — N questions per 24 hours; subscribers are unlimited. */
+/** Guests have a daily allowance (N questions per 24 hours); every free account is unlimited. */
 function Quota({ q, signedIn }) {
   if (q.unlimited) return <div className="pt-quota pro">Unlimited practice</div>;
   const pct = Math.min(100, Math.round((q.used / Math.max(1, q.limit)) * 100));
@@ -296,7 +296,7 @@ function Quota({ q, signedIn }) {
     <div className="pt-quota">
       <div className="row between"><b>Free today</b><span>{q.left} / {q.limit} questions left</span></div>
       <i><em style={{ width: `${100 - pct}%` }} /></i>
-      <small className="muted">Resets {q.used ? `in ${untilText(q.resets_at)}` : '24 hours after your first test'}. {signedIn ? <Link to="/subscribe">Unlimited with a subscription →</Link> : <Link to="/signup">Save your progress →</Link>}</small>
+      <small className="muted">Resets {q.used ? `in ${untilText(q.resets_at)}` : '24 hours after your first test'}. {signedIn ? null : <Link to="/signup">Unlimited with a free account →</Link>}</small>
     </div>
   );
 }
@@ -305,8 +305,8 @@ function LimitCard({ q, signedIn }) {
     <div className="pw-start">
       <IconClock width={34} height={34} />
       <b className="pw-start-h">Today’s free questions are used</b>
-      <p>You answered {Math.min(q.used, q.limit)} questions in the last 24 hours — great work! New free questions open in <b>{untilText(q.resets_at)}</b>.</p>
-      <Link className="btn sun lg block" to={signedIn ? '/subscribe' : '/signup'}>{signedIn ? 'Get unlimited practice' : 'Create a free account'}</Link>
+      <p>You answered {Math.min(q.used, q.limit)} questions in the last 24 hours — great work! New questions open in <b>{untilText(q.resets_at)}</b>, or practise without limits with a free account.</p>
+      {!signedIn && <Link className="btn sun lg block" to="/signup">Create a free account</Link>}
     </div>
   );
 }

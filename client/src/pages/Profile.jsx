@@ -4,7 +4,6 @@ import { api, setToken } from '../api.js';
 import { useAuth, useToast } from '../context.jsx';
 import { Avatar, Card, Field, Modal, PageHeader } from '../components/ui.jsx';
 import { IconLock } from '../components/icons.jsx';
-import StudentCard from '../components/StudentCard.jsx';
 
 export default function Profile() {
   const { user, refresh } = useAuth();
@@ -54,13 +53,8 @@ export default function Profile() {
 
   return (
     <div className="page">
-      <PageHeader title={"Profile"} sub={student ? "Your wallet card, photo and goals." : "Teacher account."} />
-      {student ? (
-        <div className="pf-grid">
-          <div className="pf-wallet"><StudentCard user={user} history /></div>
-          {profileCard}
-        </div>
-      ) : profileCard}
+      <PageHeader title={"Profile"} sub={student ? "Your photo and goals." : "Teacher account."} />
+      {profileCard}
       {pwOpen && (
         <Modal title={user.has_password ? 'Change password' : 'Set a password'} onClose={() => setPwOpen(false)}>
           <form className="stack" onSubmit={async (e) => { if (await savePw(e)) setPwOpen(false); }}>

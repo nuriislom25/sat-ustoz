@@ -13,7 +13,7 @@ const HELP = {
   content: 'Roadmap and lessons, Question Bank, reports, quality, quizzes, full mocks, Word Vault, website',
   finance: 'Finance, payment receipts (approve / reject), wallets, refunds',
   support: 'Support chats with students',
-  settings: 'Settings, plans and prices, Telegram bot, free / paid mode',
+  settings: 'Settings, Telegram bot, video and integrations',
 };
 const when = (d) => (d ? fmtDate(d, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—');
 
@@ -83,7 +83,7 @@ function AdminForm({ a, sections, onClose, onDone }) {
         ) : <small className="muted">Login: @{a.login}</small>}
         <div className="adm-perms">
           <b>Can open</b>
-          {sections.map((s) => (
+          {sections.filter((s) => s.id !== 'finance').map((s) => ( // SAT Ustoz is free: no finance section
             <label key={s.id} className={`adm-perm ${f.perms.includes(s.id) ? 'on' : ''}`}>
               <input type="checkbox" checked={f.perms.includes(s.id)} onChange={() => toggle(s.id)} />
               <span><b>{s.label}</b><small>{HELP[s.id]}</small></span>

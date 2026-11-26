@@ -40,7 +40,7 @@ const PAGES = [
     desc: 'Online SAT prep for the digital SAT Reading & Writing section: free practice tests, a 200 to 800 roadmap with video lessons, an SAT Question Bank, Bluebook-style mocks and vocabulary. Onlayn SAT tayyorlov platformasi.',
     h1: 'Online SAT Reading & Writing prep platform',
     body: `
-<p>SAT Ustoz is an online SAT prep platform for the digital SAT <strong>Reading and Writing</strong> section. Students start with a free practice test, then follow a clear roadmap from <strong>200 to 800</strong> with a teacher who checks every result.</p>
+<p>SAT Ustoz is an online SAT prep platform for the digital SAT <strong>Reading and Writing</strong> section. Students start with a free practice test, then follow a clear roadmap from <strong>200 to 800</strong> with a teacher who checks every result. Everything on SAT Ustoz is free: lessons, videos, the Question Bank and full mocks.</p>
 <h2>What you get</h2>
 <ul>
 <li><strong>Free SAT practice test</strong>: 27 questions, 32 minutes, score estimate and skill breakdown, no sign-up.</li>
@@ -58,7 +58,7 @@ const PAGES = [
     ld: (u) => [
       ORG,
       { '@type': 'WebSite', '@id': `${SITE}/#site`, url: SITE, name: BRAND, inLanguage: 'en', publisher: { '@id': `${SITE}/#org` } },
-      { '@type': 'Course', name: 'SAT Reading & Writing: from 200 to 800', description: 'Step-by-step online course for the digital SAT Reading and Writing section with video lessons, practice questions, level checks and timed tests.', provider: { '@id': `${SITE}/#org` }, inLanguage: 'en', educationalLevel: 'High school', teaches: ['SAT Reading and Writing', 'Standard English Conventions', 'SAT vocabulary'], hasCourseInstance: { '@type': 'CourseInstance', courseMode: 'online', courseWorkload: 'PT1H' }, offers: { '@type': 'Offer', category: 'Subscription', availability: 'https://schema.org/InStock', url: `${SITE}/signup` } },
+      { '@type': 'Course', name: 'SAT Reading & Writing: from 200 to 800', description: 'Step-by-step online course for the digital SAT Reading and Writing section with video lessons, practice questions, level checks and timed tests.', provider: { '@id': `${SITE}/#org` }, inLanguage: 'en', educationalLevel: 'High school', teaches: ['SAT Reading and Writing', 'Standard English Conventions', 'SAT vocabulary'], hasCourseInstance: { '@type': 'CourseInstance', courseMode: 'online', courseWorkload: 'PT1H' }, offers: { '@type': 'Offer', category: 'Free', price: '0', priceCurrency: 'UZS', availability: 'https://schema.org/InStock', url: `${SITE}/signup` } },
       faqLd(),
     ],
     faq: true,
@@ -119,7 +119,7 @@ for (const lp of LOCAL_PAGES) {
     ld: () => [
       ...(lp.article ? [{ '@type': 'Article', headline: lp.h1, description: lp.desc, inLanguage: lp.lang, url: SITE + lp.path, author: { '@type': 'Person', name: 'Ahror Alimjon' }, publisher: { '@id': `${SITE}/#org` }, dateModified: TODAY, image: `${SITE}/og.png` }]
         : [ORG, { '@type': 'WebPage', name: lp.title, description: lp.desc, inLanguage: lp.lang, url: SITE + lp.path, isPartOf: { '@id': `${SITE}/#site` }, about: { '@id': `${SITE}/#org` } },
-          { '@type': 'Course', name: lp.h1, description: lp.desc, inLanguage: lp.lang, provider: { '@id': `${SITE}/#org` }, hasCourseInstance: { '@type': 'CourseInstance', courseMode: 'online', courseWorkload: 'PT1H' }, offers: { '@type': 'Offer', category: 'Subscription', availability: 'https://schema.org/InStock', url: `${SITE}/signup` } }]),
+          { '@type': 'Course', name: lp.h1, description: lp.desc, inLanguage: lp.lang, provider: { '@id': `${SITE}/#org` }, hasCourseInstance: { '@type': 'CourseInstance', courseMode: 'online', courseWorkload: 'PT1H' }, offers: { '@type': 'Offer', category: 'Free', price: '0', priceCurrency: 'UZS', availability: 'https://schema.org/InStock', url: `${SITE}/signup` } }]),
       ...(lp.faq ? [{ '@type': 'FAQPage', inLanguage: lp.lang, mainEntity: lp.faq.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) }] : []),
       crumbs(lp.article ? [['SAT Ustoz', home], [lp.h1, lp.path]] : [[lp.h1, lp.path]]),
     ],

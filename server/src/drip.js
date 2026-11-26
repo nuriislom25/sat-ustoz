@@ -10,7 +10,7 @@
  * (Settings → lesson_unlock_price), or by the teacher for one student. When a lesson opens the Telegram bot tells
  * the student (checked on API traffic every 15 minutes and by a daily Vercel cron).
  */
-import { db, getSettings } from './db.js';
+import { db, getSettings, FREE_PLATFORM } from './db.js';
 import { moveBalance } from './tiers.js';
 import { notifyUser } from './tgbot.js';
 import { calibrateIfStale } from './calibrate.js';
@@ -70,6 +70,7 @@ export function registerDrip(app, { h, bad, requireMaster, requireStudent, roadm
 
   // student: open a waiting lesson now, paid from the wallet
   app.post('/api/lessons/:id/unlock-now', requireStudent, h(async (req, res) => {
+    if (FREE_PLATFORM) return bad(res, 'SAT Ustoz is free. Everything is already open for you.', 410, { code: 'free' });
     const id = Number(req.params.id);
     const { steps } = await roadmapFor(req.user);
     const it = steps.flatMap((s) => s.items).find((x) => x.id === id);

@@ -60,35 +60,20 @@ export default function StudentDetail() {
       <Gate state={st}>{([s, a, pf, groups, pl, rep]) => (
         <>
           <PageHeader title={s.name} sub={<><Link to="/students">Students</Link> / {s.email || '@' + s.login}{s.phone ? <> · <a href={`tel:${s.phone}`}>{s.phone}</a></> : ''}{s.provider === 'telegram' ? ' · Telegram' : ''}{s.group_name ? ` · ${s.group_name}` : ''}</>}>
-            <button className={`btn ${s.sub_active ? 'soft' : 'primary'}`} onClick={() => setSub(true)}><IconCrown width={16} height={16} /> {s.sub_active ? 'Extend subscription' : 'Activate subscription'}</button>
             <button className="btn ghost" onClick={() => setEdit(true)}><IconEdit width={16} height={16} /> {"Edit"}</button>
             {s.provider !== 'google' && <button className="btn ghost" onClick={() => setResetAsk(true)}><IconKey width={16} height={16} /> {"Reset password"}</button>}
             <button className="btn danger-ghost" onClick={() => setDel(true)}><IconTrash width={16} height={16} /> {"Delete"}</button>
           </PageHeader>
-          <div className="grid g4 keep2 stagger">
+          <div className="grid g2 stagger">
             <Card><small className="muted">Signed up</small><b style={{ display: 'block' }}>{fmtDate(s.created_at)}</b><small className="muted">{s.provider === 'google' ? 'with Google' : s.provider === 'email' ? 'with email' : 'by teacher'}</small></Card>
             <Card><small className="muted">Placement test</small>
               {pl.results[0]
                 ? <Link to={`/placement/result/${pl.results[0].id}`} style={{ display: 'block', fontWeight: 700 }}>{pl.results[0].cefr} · {pl.results[0].midpoint - 30}–{pl.results[0].midpoint + 30} →</Link>
                 : <b style={{ display: 'block' }}>{pl.open ? 'In progress' : 'Not taken'}</b>}
               {pl.results[0] && <small className={pl.results[0].admitted ? 'muted' : 'muted'}>{pl.results[0].admitted ? 'Ready for the course' : 'Below the course level'}</small>}</Card>
-            <Card className={`sub-card ${s.sub_active ? 'on' : 'off'}`}><small className="muted">Subscription</small>
-              <b style={{ display: 'block', color: s.sub_active ? 'var(--good)' : 'var(--bad)' }}>{s.sub_active ? `${PLAN_NAME[s.sub_plan] || 'Plan'} · until ${fmtDate(s.sub_until)}` : 'Free (no plan)'}</b>
-              <button className="link-btn" onClick={() => setSub(true)}>{s.sub_active ? 'Extend or cancel' : 'Activate now'} →</button>
-              <small className="muted sub-math">Math: {s.math_sub_active ? `${PLAN_NAME[s.math_sub_plan] || 'Plan'} · until ${fmtDate(s.math_sub_until)}` : 'no plan'} · <button className="link-btn" onClick={() => setSub('math')}>{s.math_sub_active ? 'Extend' : 'Give Math'}</button></small></Card>
-            <Balance id={s.id} />
           </div>
-          <Segmented value={tab} onChange={setTab} options={[{ value: 'report', label: 'Full report' }, { value: 'tasks', label: 'Assignments' }, { value: 'analytics', label: 'Quiz analysis' }, { value: 'portfolio', label: 'Portfolio' }, { value: 'payments', label: 'Payments', count: s.payments.length }]} />
-          {tab === 'report' ? <StudentReport r={rep} /> : tab === 'tasks' ? <StudentTasks id={s.id} /> : tab === 'analytics' ? <AnalyticsView a={a} /> : tab === 'portfolio' ? <PortfolioView data={pf} editable={false} onChange={() => {}} /> : (
-            <Card>
-              {s.payments.length === 0 ? <p className="muted center">No payments yet.</p> : (
-                <div className="table-wrap"><table className="t">
-                  <thead><tr><th>Date</th><th>Plan</th><th>Days</th><th>Amount</th><th>Source</th><th>Note</th></tr></thead>
-                  <tbody>{s.payments.map((p) => <tr key={p.id}><td className="nowrap">{fmtDate(p.created_at)}</td><td>{p.plan}</td><td>{p.days}</td><td className="nowrap">{p.amount ? `${p.amount.toLocaleString('en-US')} ${p.currency}` : '—'}</td><td><span className="chip">{p.provider}</span></td><td className="muted">{p.note}</td></tr>)}</tbody>
-                </table></div>
-              )}
-            </Card>
-          )}
+          <Segmented value={tab} onChange={setTab} options={[{ value: 'report', label: 'Full report' }, { value: 'tasks', label: 'Assignments' }, { value: 'analytics', label: 'Quiz analysis' }, { value: 'portfolio', label: 'Portfolio' }]} />
+          {tab === 'report' ? <StudentReport r={rep} /> : tab === 'tasks' ? <StudentTasks id={s.id} /> : tab === 'analytics' ? <AnalyticsView a={a} /> : tab === 'portfolio' ? <PortfolioView data={pf} editable={false} onChange={() => {}} /> : null}
           <WeeklyLessons id={s.id} />
           {sub && <SubscriptionModal student={s} subject={sub === 'math' ? 'math' : 'english'} onClose={() => setSub(false)} onDone={() => { setSub(false); st.reload(); }} />}
           {edit && <EditStudent s={s} groups={groups} onClose={() => setEdit(false)} onSaved={() => { setEdit(false); toast("Saved"); st.reload(); }} />}

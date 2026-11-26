@@ -13,7 +13,7 @@
  * with a CHECK (balance >= 0) and a conditional UPDATE so it can never be inflated or go negative.
  */
 import crypto from 'node:crypto';
-import { db, getSettings } from './db.js';
+import { db, getSettings, FREE_PLATFORM } from './db.js';
 import { subActive } from './auth.js';
 
 // 0 in q_day / quiz_day / fm_week = unlimited
@@ -69,9 +69,10 @@ export function tierOf(user, settings, subject = 'english') {
   // free mode (teacher turned off "require a subscription"): every student gets everything self-paced (Pro Max level);
   // live 1-on-1 lessons stay booked and paid
   if (settings?.require_subscription !== 'true') {
+    // everything, with no limits; live lessons only for a student whose booked live period is still running
     const top = tiers.find((t) => t.id === 't3') || tiers[tiers.length - 1];
-    if (subject !== 'math' && subActive(u) && u.sub_plan === 't4') return tiers.find((t) => t.id === 't4') || top;
-    return { ...top, id: 'open', name: 'Free access', price: 0, q_day: 0, quiz_day: 0, fm_week: 0 };
+    const live = subject !== 'math' && subActive(u) && u.sub_plan === 't4';
+    return { ...top, id: 'open', name: 'Free', price: 0, q_day: 0, quiz_day: 0, fm_week: 0, roadmap: true, video: true, ask: true, consult_days: 0, consult_min: top.consult_min || 30, live };
   }
   if (subActive(u)) {
     const id = tiers.some((t) => t.id === u.sub_plan) ? u.sub_plan : LEGACY[u.sub_plan] || 't3';
@@ -196,6 +197,7 @@ ALTER TABLE auth_fails ENABLE ROW LEVEL SECURITY;
  * `ref` makes a charge idempotent (the same ref is never applied twice).
  */
 export async function moveBalance(t, userId, amount, reason, { note = '', ref = null, by = null } = {}) {
+  if (FREE_PLATFORM && amount < 0) return null; // the platform is free: nothing is ever charged
   amount = Math.round(amount);
   if (!amount) return null;
   if (ref && (await t.one('SELECT id FROM balance_ledger WHERE ref = ?', [ref]))) return null;
@@ -215,6 +217,7 @@ export function registerTiers(app, { h, bad, requireMaster, requireStudent }) {
   }));
 
   app.post('/api/plans/buy', requireStudent, h(async (req, res) => {
+    if (FREE_PLATFORM) return bad(res, 'SAT Ustoz is free. Everything is already open for you.', 410, { code: 'free' });
     res.json(await buyPlan(req.user.id, req.body?.plan, req.body?.months, req.body?.key, req.body?.subject, req.body?.promo));
   }));
 
@@ -225,6 +228,7 @@ export function registerTiers(app, { h, bad, requireMaster, requireStudent }) {
   }));
   // teacher: top up (or correct) a student's balance — the only way money is added
   app.post('/api/students/:id/balance', requireMaster, h(async (req, res) => {
+    if (FREE_PLATFORM) return bad(res, 'SAT Ustoz is free: wallets are no longer used', 410, { code: 'free' });
     const u = await db.one("SELECT id, balance FROM users WHERE id = ? AND role = 'student'", [req.params.id]);
     if (!u) return bad(res, 'Not found', 404);
     // { amount: +/-N } adds or subtracts; { set: N } sets the wallet to exactly N (the difference is logged)
@@ -267,9 +271,11 @@ export function registerTiers(app, { h, bad, requireMaster, requireStudent }) {
   }));
   app.post('/api/consultations', requireStudent, h(async (req, res) => {
     const tier = tierOf(req.user, await getSettings());
-    if (!tier.consult_days) return bad(res, 'Consultations with the teacher come with the Roadmap plan and higher', 402, { code: 'subscription_required' });
+    if (!FREE_PLATFORM && !tier.consult_days) return bad(res, 'Consultations with the teacher come with the Roadmap plan and higher', 402, { code: 'subscription_required' });
+    // free: ask any time; one waiting request at a time, the teacher accepts (schedules) or declines it
+    if (await db.one("SELECT 1 AS x FROM consultations WHERE user_id = ? AND status = 'requested'", [req.user.id])) return bad(res, 'Your last request is still waiting for the teacher. You can cancel it and send a new one.', 409);
     const last = await db.one("SELECT created_at FROM consultations WHERE user_id = ? AND status <> 'cancelled' ORDER BY id DESC LIMIT 1", [req.user.id]);
-    if (last && Date.now() - new Date(last.created_at).getTime() < tier.consult_days * 86400e3) {
+    if (tier.consult_days && last && Date.now() - new Date(last.created_at).getTime() < tier.consult_days * 86400e3) {
       const next = new Date(new Date(last.created_at).getTime() + tier.consult_days * 86400e3);
       return bad(res, `Your next consultation can be booked from ${next.toISOString().slice(0, 10)}`, 429);
     }
@@ -284,10 +290,18 @@ export function registerTiers(app, { h, bad, requireMaster, requireStudent }) {
     res.json({ ok: true });
   }));
   app.put('/api/consultations/:id', requireMaster, h(async (req, res) => {
-    const st = ['requested', 'scheduled', 'done', 'cancelled'].includes(req.body?.status) ? req.body.status : 'scheduled';
+    const st = ['requested', 'scheduled', 'done', 'cancelled', 'declined'].includes(req.body?.status) ? req.body.status : 'scheduled';
     const at = req.body?.scheduled_at ? new Date(req.body.scheduled_at) : null;
     await db.run('UPDATE consultations SET status = ?, scheduled_at = COALESCE(?, scheduled_at), link = COALESCE(?, link) WHERE id = ?',
       [st, at && !Number.isNaN(at.getTime()) ? at.toISOString() : null, req.body?.link != null ? String(req.body.link).slice(0, 300) : null, Number(req.params.id)]);
+    // tell the student in Telegram when the teacher accepts (sets a time) or declines
+    if (st === 'scheduled' || st === 'declined') {
+      const c = await db.one('SELECT user_id, scheduled_at FROM consultations WHERE id = ?', [Number(req.params.id)]);
+      const t = c?.scheduled_at ? new Date(c.scheduled_at).toLocaleString('uz-UZ', { timeZone: 'Asia/Tashkent', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) : '';
+      if (c) import('./tgbot.js').then((m) => m.notifyUser(c.user_id, st === 'scheduled'
+        ? `📅 Konsultatsiya tasdiqlandi${t ? `: <b>${t}</b>` : ''}.\nHavola va vaqt saytda: Consultations.`
+        : "Ustoz bu safar konsultatsiya so'rovingizni qabul qila olmadi. Keyinroq yana so'rashingiz mumkin.")).catch(() => {});
+    }
     res.json({ ok: true });
   }));
 }

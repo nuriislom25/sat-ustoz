@@ -2,7 +2,7 @@
 export const OFERTA = {
   section: 'legal', slug: 'oferta', emoji: '', title: 'Ommaviy oferta (Terms of use)',
   summary: 'SAT Ustoz platformasidan foydalanish shartlari.',
-  body: `**Oxirgi yangilanish: 2026-yil 3-noyabr**
+  body: `**Oxirgi yangilanish: 2026-yil 27-noyabr**
 
 Ushbu hujjat SAT Ustoz onlayn platformasi (www.ustozsat.uz, keyingi o'rinlarda "Platforma") va undan foydalanuvchi shaxs (keyingi o'rinlarda "Foydalanuvchi") o'rtasidagi ommaviy oferta hisoblanadi. Ro'yxatdan o'tish, tizimga kirish yoki "Continue with Google" tugmasini bosishdan oldin "Oferta shartlariga roziman" belgisini qo'yish ushbu shartlarni to'liq qabul qilishni anglatadi (O'zbekiston Respublikasi Fuqarolik kodeksi, 367–370-moddalar).
 
@@ -28,15 +28,11 @@ Ushbu hujjat SAT Ustoz onlayn platformasi (www.ustozsat.uz, keyingi o'rinlarda "
 
 2.5. 16 yoshga to'lmagan foydalanuvchi ota-onasi yoki qonuniy vakilining roziligi bilan foydalanadi.
 
-## 3. To'lov va obuna
+## 3. Bepul xizmat
 
-3.1. Platformaning bir qismi bepul, to'liq imkoniyatlar esa pullik obuna orqali ochiladi. Narxlar saytdagi "Pricing" bo'limida ko'rsatiladi.
+3.1. Platforma barcha foydalanuvchilar uchun **to'liq bepul**: darslar, video, savollar banki, testlar, full mocklar va ustozga savollar. Hech qanday to'lov, obuna yoki kunlik limit yo'q.
 
-3.2. To'lov Platforma ko'rsatgan to'lov tizimlari yoki ustoz orqali amalga oshiriladi. Obuna to'lov tasdiqlangan paytdan boshlab tanlangan muddatga faollashadi.
-
-3.3. Xizmat to'liq ko'rsatilmagan holatda Foydalanuvchi to'lovdan keyin **3 kun ichida** murojaat qilsa, foydalanilmagan qism qaytarilishi mumkin. Qolgan holatlarda to'lov qaytarilmaydi.
-
-3.4. Narxlar o'zgarishi mumkin. Bunday holatda allaqachon to'langan muddat o'zgarmaydi.
+3.2. Platforma foydalanuvchidan pul so'ramaydi. Kimdir Platforma nomidan to'lov so'rasa, bu firibgarlik: ustozga xabar bering.
 
 ## 4. Foydalanuvchining majburiyatlari
 
@@ -44,11 +40,11 @@ Ushbu hujjat SAT Ustoz onlayn platformasi (www.ustozsat.uz, keyingi o'rinlarda "
 
 4.2. Platforma ishiga xalaqit beradigan harakatlar, avtomatlashtirilgan dasturlar va reytingni sun'iy oshirish taqiqlanadi.
 
-4.3. Qoidalar buzilganda akkaunt to'lov qaytarilmasdan bloklanishi mumkin.
+4.3. Qoidalar buzilganda akkaunt bloklanishi mumkin.
 
 ## 5. Shaxsiy ma'lumotlar
 
-5.1. Platforma ism, email, natijalar va platformada o'tkazilgan vaqtni saqlaydi. Bu ma'lumotlar ta'lim xizmatini ko'rsatish, ustozga hisobot berish va to'lovlarni hisobga olish uchun ishlatiladi ("Shaxsga doir ma'lumotlar to'g'risida"gi O'zbekiston Respublikasi Qonuniga muvofiq).
+5.1. Platforma ism, email, natijalar va platformada o'tkazilgan vaqtni saqlaydi. Bu ma'lumotlar ta'lim xizmatini ko'rsatish, ustozga hisobot berish uchun ishlatiladi ("Shaxsga doir ma'lumotlar to'g'risida"gi O'zbekiston Respublikasi Qonuniga muvofiq).
 
 5.2. Ma'lumotlar uchinchi shaxslarga sotilmaydi va qonunda ko'rsatilgan holatlardan tashqari berilmaydi.
 
@@ -68,3 +64,7 @@ Ushbu hujjat SAT Ustoz onlayn platformasi (www.ustozsat.uz, keyingi o'rinlarda "
 
 7.3. Savollar uchun saytdagi "Ask Ustoz" chat yoki yuqoridagi kontaktlar orqali murojaat qiling.`,
 };
+
+// the paid-plan section of earlier versions: replaced in the saved page on start (the teacher's other edits stay)
+export const OFERTA_OLD_PAID = "## 3. To'lov va obuna\n\n3.1. Platformaning bir qismi bepul, to'liq imkoniyatlar esa pullik obuna orqali ochiladi. Narxlar saytdagi \"Pricing\" bo'limida ko'rsatiladi.\n\n3.2. To'lov Platforma ko'rsatgan to'lov tizimlari yoki ustoz orqali amalga oshiriladi. Obuna to'lov tasdiqlangan paytdan boshlab tanlangan muddatga faollashadi.\n\n3.3. Xizmat to'liq ko'rsatilmagan holatda Foydalanuvchi to'lovdan keyin **3 kun ichida** murojaat qilsa, foydalanilmagan qism qaytarilishi mumkin. Qolgan holatlarda to'lov qaytarilmaydi.\n\n3.4. Narxlar o'zgarishi mumkin. Bunday holatda allaqachon to'langan muddat o'zgarmaydi.\n\n";
+export const OFERTA_FREE = "## 3. Bepul xizmat\n\n3.1. Platforma barcha foydalanuvchilar uchun **to'liq bepul**: darslar, video, savollar banki, testlar, full mocklar va ustozga savollar. Hech qanday to'lov, obuna yoki kunlik limit yo'q.\n\n3.2. Platforma foydalanuvchidan pul so'ramaydi. Kimdir Platforma nomidan to'lov so'rasa, bu firibgarlik: ustozga xabar bering.\n\n";
