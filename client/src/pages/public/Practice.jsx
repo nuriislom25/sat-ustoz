@@ -290,7 +290,7 @@ const untilText = (iso) => {
 
 /** Guests have a daily allowance (N questions per 24 hours); every free account is unlimited. */
 function Quota({ q, signedIn }) {
-  if (q.unlimited) return <div className="pt-quota pro">Unlimited practice</div>;
+  if (q.unlimited) return <div className="pt-quota pro">Unlimited free practice</div>;
   const pct = Math.min(100, Math.round((q.used / Math.max(1, q.limit)) * 100));
   return (
     <div className="pt-quota">

@@ -13,7 +13,7 @@ import { OFERTA, OFERTA_FREE, OFERTA_OLD_PAID } from './oferta.js';
  */
 import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
-import { db } from './db.js';
+import { db, FREE_PLATFORM } from './db.js';
 import { DOMAINS } from './qbank.js';
 import { subActive } from './auth.js';
 import { clientIp } from './security.js';
@@ -158,6 +158,8 @@ export async function seedSite() {
     await db.run('UPDATE site_blocks SET data = replace(data, ?, ?) WHERE data LIKE ?', [a, b, `%${a}%`]);
     await db.run('UPDATE site_pages SET body = replace(body, ?, ?) WHERE body LIKE ?', [a, b, `%${a}%`]);
   }
+  // a daily allowance written into the hero ("Take 100 free practice questions every day…"): practice is unlimited now
+  await db.run(`UPDATE site_blocks SET data = regexp_replace(data, 'Take [0-9]+ free practice questions every day to test yourself right now', 'Take unlimited free practice questions right now', 'g') WHERE data ~ 'Take [0-9]+ free practice questions every day'`);
   // the public offer page always exists (the teacher can edit it, it is never overwritten)
   await db.run('INSERT INTO site_pages (section, slug, title, summary, body, emoji, position) VALUES (?,?,?,?,?,?,?) ON CONFLICT (slug) DO NOTHING', [OFERTA.section, OFERTA.slug, OFERTA.title, OFERTA.summary, OFERTA.body, OFERTA.emoji, 999]);
   // SAT Ustoz became free: swap the old payment section of the terms for the free one (other edits stay)
@@ -200,7 +202,7 @@ function optionalUser(SECRET) {
 export const ipKey = (req) => crypto.createHash('sha256').update(`${clientIp(req)}:sat-ustoz`).digest('hex').slice(0, 24);
 export async function quota(req, u, cfg) {
   const limit = Number(cfg.daily_limit) || 0;
-  let unlimited = limit <= 0;
+  let unlimited = FREE_PLATFORM || limit <= 0; // SAT Ustoz is free: practice is unlimited for everyone, guests too
   if (u && !unlimited) {
     const row = await db.one('SELECT role, sub_until FROM users WHERE id = ?', [u.id]);
     unlimited = !!row; // SAT Ustoz is free: every signed-in account is unlimited (only guests have a daily allowance)
