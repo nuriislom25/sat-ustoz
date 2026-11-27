@@ -481,7 +481,8 @@ app.get('/api/sat-dates', (req, res) => res.json(SAT_DATES));
  * review, 5 per correct Word Arena answer, 1 per minute of active study. Only first name + initial is shown.
  */
 const WEEK_START = "date_trunc('week', now() AT TIME ZONE 'Asia/Tashkent') AT TIME ZONE 'Asia/Tashkent'";
-const shortName = (n) => { const w = String(n || '').trim().split(/\s+/); return w[0] + (w[1] ? ` ${w[1][0]}.` : ''); };
+// first name + initial; [...x][0] takes a whole character, so an emoji is never cut in half (that broke the iOS app's leaderboard)
+const shortName = (n) => { const w = String(n || '').trim().split(/\s+/); return w[0] + (w[1] ? ` ${[...w[1]][0]}.` : ''); };
 // fair play: a quiz counts on the first try and on one real retake, first-try right answers in the Question Bank count, and
 // practice tests, Word Arena and time on the platform have a daily ceiling (the prizes are real money)
 const LB = { practice_day: 3, arena_day: 300, minutes_day: 180 };
