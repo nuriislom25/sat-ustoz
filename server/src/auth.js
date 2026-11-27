@@ -117,7 +117,7 @@ export async function verifyGoogleCredential(credential, fromSettings = '') {
   try {
     ({ payload } = await jwtVerify(String(credential || ''), GOOGLE_JWKS, {
       issuer: ['https://accounts.google.com', 'accounts.google.com'],
-      audience: clientId,
+      audience: [clientId, ...(process.env.GOOGLE_IOS_CLIENT_ID || '760000458169-chnecgm04b4631332r81mcv900uutbn6.apps.googleusercontent.com').split(',').map((s) => s.trim()).filter(Boolean)], // + the iOS app's Google client
     }));
   } catch (e) {
     const offline = /fetch|ENOTFOUND|ECONN|network/i.test(String(e?.message) + String(e?.cause?.code || ''));
